@@ -1,4 +1,5 @@
 # Trabajo Final de Máster
+
 Este repositorio contiene el detalle del código ejecutado para la elaboración del Trabajo Final de Máster titulado: **Contraste de métodos de imputación estadística en la documentación de víctimas del conflicto armado colombiano**
 
 El flujo de trabajo consta de 10 pasos y se explican a continuación:
@@ -30,3 +31,6 @@ La carpeta de inputs no contiene las bases de datos que se usaron del Panel Muni
 9. [09.comparacion_modelos](https://github.com/vgomezc18/TFM/tree/main/09.comparacion_modelos): En esta carpeta se comparan los diferentes métodos de imputación (resultados JEP-CEV-HRDAG, imputación por donante, imputación por machine learning e imputación por regresión). Se realizan gráficos que permitan comparar los diferentes resultados. 
 
 10. [10.validacion_modelos](https://github.com/vgomezc18/TFM/tree/main/10.validacion_modelos): En esta carpeta se validan los resultados obtenidos a través de los diferentes métodos de imputación (imputación por donante, imputación por machine learning e imputación por regresión). Se realiza una validación cruzada.
+
+Autora: Valentina Gómez Calderón
+Contacto: valegome@ucm.es - valengomez018@gmail.com
