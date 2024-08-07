@@ -1,0 +1,444 @@
+---
+title: "Contraste de métodos de imputación estadística en la documentación de víctimas del
+conflicto armado colombiano"
+author: "Valentina Gómez^[[valegome@ucm.es](valegome@ucm.es)]"
+date: '`r format(Sys.time(), "%d %B %Y")`'
+output: pdf_document
+site: "bookdown::bookdown_site"
+lang: es-CO
+fig_width: 4
+fig_height: 2.5
+fontsize: 12pt
+urlcolor: blue
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+# Imputación de variables auxiliares
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(readxl, tidyverse, dplyr, validate, VIM, simputation, hot.deck,
+							 data.table, readr)
+```
+
+
+## Importar datos
+
+```{r}
+
+input_dir <- here::here("05.imputar_var_aux/input")
+
+caracteristicas_generales <- read_excel(paste0(input_dir,"/PANEL_CARACTERISTICAS_GENERALES(2022).xlsx")) %>%
+	select(depto, provincia, municipio,
+		     codmpio, ano, pobl_rur, pobl_urb, pobl_tot, 
+				 indrural,areaoficialkm2, discapital) %>%
+	mutate(codmpio = as.character(codmpio),
+				 ano = as.character(ano))
+
+buen_gobierno <- read_excel(paste0(input_dir,"/PANEL_BUEN_GOBIERNO(2023).xlsx")) %>%
+	select(codmpio, ano, y_transf, g_func_general) %>%
+	mutate(codmpio = as.character(codmpio),
+				 ano = as.character(ano))
+
+conflicto_violencia <-  read_excel(paste0(input_dir,"/PANEL_CONFLICTO_Y_VIOLENCIA(2022).xlsx")) %>%
+	select(codmpio, ano, H_coca) %>%
+	mutate(codmpio = as.character(codmpio),
+				 ano = as.character(ano))
+	
+educacion <- read_excel(paste0(input_dir,"/PANEL_DE_EDUCACION(2023).xlsx")) %>%
+	select(codmpio, ano, asistesc, per_alfa, alumn_total) %>%
+	mutate(codmpio = as.character(codmpio),
+				 ano = as.character(ano))
+
+salud_y_servicios <- read_excel(paste0(input_dir,"/PANEL_SALUD_Y_SERVICIOS.xlsx")) %>%
+	select(codmpio, ano, `Numero de defunciones totales`, `Numero de nacidos vivos totales`) %>%
+	mutate(codmpio = as.character(codmpio),
+				 ano = as.character(ano)) %>%
+	rename(defunciones_tot_mpio = `Numero de defunciones totales`,
+				 nacimientos_tot_mpio = `Numero de nacidos vivos totales`)
+
+nacimientos_dane <- readRDS(here::here("04.depurar_fuentes_externas/output/nacimientos_dane.rds"))%>%
+	distinct_all()
+
+defunciones_dane <- readRDS(here::here("04.depurar_fuentes_externas/output/defunciones_dane.rds"))%>%
+	distinct_all()
+
+municipios_frontera <- read_excel(paste0(input_dir,"/municipios_frontera.xlsx")) %>%
+	mutate(codmpio = as.character(codmpio))%>%
+	select(-municipio)
+saveRDS(municipios_frontera, (here::here("05.imputar_var_aux/output/municipios_frontera.rds")))
+
+deptos_mpios_col <- readRDS(here::here("04.depurar_fuentes_externas/output/departamentos_colombia.rds"))
+	
+violencias_unidas <- readRDS(here::here("01.tablas_documentadas/output/violencias_unidas.rds"))%>%
+	as.data.table()
+
+
+```
+
+## Base de datos de Características Generales
+
+Al importar las bases de datos que serán de utilidad para las variables auxiliares, verificamos que las bases tengan información completa ya que lo necesitamos para la imputación: 
+
+```{r}
+colSums(is.na(caracteristicas_generales))
+```
+Hay valores faltantes para la pobl_rur, la pob_urb, el indrural y el areaoficialkm2. 
+
+Observamos los valores faltantes para la población rural y urbana: 
+
+```{r}
+miss_pobl <- caracteristicas_generales %>%
+	filter(is.na(pobl_rur) | is.na(pobl_urb) | is.na(indrural)) 
+```
+
+Para estos valores faltantes es posible hacer imputación deductiva usando edits de balance, pues se posee toda la información para la población total. Conociendo que la población rural y urbana debe ser la suma de la población total, es posible imputar la población rural y urbana. Posteriormente, con estos datos es posible imputar el índice rural, teniendo en cuenta que es pobl_rur/pobl_tot. Además se tiene en cuenta que cuando la división sea nula es porque el municipio no tenía población antes de su fundación o erección por lo tanto el indíce rural es cero.
+
+```{r}
+
+caracteristicas_generales_edit <- caracteristicas_generales %>%
+	select(codmpio, ano, pobl_rur, pobl_urb, pobl_tot, 
+				 indrural,areaoficialkm2, discapital) %>%
+	mutate(pobl_rur_mpio = case_when(is.na(pobl_rur) & is.na(pobl_urb) & pobl_tot == 0  ~ pobl_tot,
+																	TRUE ~ pobl_rur),
+				 pobl_urb_mpio = case_when(is.na(pobl_rur) & is.na(pobl_urb) & pobl_tot == 0  ~ pobl_tot,
+				 										 pobl_rur == pobl_tot ~ pobl_tot - pobl_rur,
+																	TRUE ~ pobl_urb),
+				 indrural_mpio = case_when(pobl_tot == 0 ~ 0,
+				 	                    is.na(indrural) ~ (pobl_rur/pobl_tot),
+				 										      TRUE ~ indrural),
+				 pobl_tot_mpio = pobl_tot) %>%
+	select(codmpio, ano, pobl_rur_mpio, pobl_urb_mpio, pobl_tot_mpio, 
+				 indrural_mpio,areaoficialkm2, discapital)
+
+colSums(is.na(caracteristicas_generales_edit))
+
+# Pasamos el edit de balance
+
+rule_PT_balance.validator <- validator(
+  PT_balance = pobl_tot_mpio == pobl_rur_mpio + pobl_urb_mpio
+)
+
+result_PT_balance.validation <- confront(caracteristicas_generales_edit, rule_PT_balance.validator,
+																				 lin.ineq.eps=0, lin.eq.eps=0.01)
+result_PT_balance.validation
+```
+Seguimos teniendo valores nulos en el areaoficialkm2, por lo cual revisamos los datos. El área de un municipio no es una variable que suela cambiar todos los años o con frecuencia, por lo cual los valores faltantes los imputaremos de la siguiente manera: 
+
+Si el municipio tiene valores para otros años, completaremos el valor faltante con la moda de areaoficialkm2 por municipio.
+
+```{r}
+
+colSums(is.na(caracteristicas_generales_edit))
+
+miss_area <- caracteristicas_generales_edit %>%
+	filter(is.na(areaoficialkm2)) 
+
+moda <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+caracteristicas_generales_edit <- caracteristicas_generales_edit %>%
+  group_by(codmpio) %>%
+  mutate(moda_areakm2 = moda(areaoficialkm2)) %>%
+  ungroup()
+
+# Imputar teniendo en cuenta la moda:
+
+caracteristicas_generales_edit1 <- caracteristicas_generales_edit %>%
+  mutate(areaoficialkm2_mpio = case_when(is.na(areaoficialkm2) ~ moda_areakm2,
+  																	TRUE ~ areaoficialkm2))
+
+imputed_flags <- as.data.frame(as.data.frame(is.na(caracteristicas_generales_edit)) & !is.na(caracteristicas_generales_edit1))
+
+caracteristicas_generales_edit1$area_imputed <- imputed_flags$areaoficialkm2_mpio
+
+colSums(is.na(caracteristicas_generales_edit1))
+
+
+# Obtener la media de areaoficialkm2 para cada municipio antes de imputar, solo para los valores completos:
+
+mean_pre_area <- caracteristicas_generales_edit %>%
+  group_by(codmpio) %>%
+  summarise(media = mean(areaoficialkm2, na.rm = TRUE))
+
+mean_imputed_area <- caracteristicas_generales_edit1 %>%
+  group_by(codmpio) %>%
+  summarise(media_imputed = round(mean(areaoficialkm2_mpio), 0))
+
+compare_mean_area <- mean_pre_area %>%
+	left_join(mean_imputed_area) %>%
+	mutate(diff_mean = media - media_imputed)
+
+max(compare_mean_area$diff_mean) # Se conserva la media antes de imputar y después.
+
+caracteristicas_generales_edit1 <- caracteristicas_generales_edit1 %>%
+	mutate(discapital_mpio = discapital) %>%
+	select(-areaoficialkm2, -moda_areakm2, -discapital) 
+
+colSums(is.na(caracteristicas_generales_edit1))
+
+rm(caracteristicas_generales_edit)
+rm(caracteristicas_generales)
+
+saveRDS(caracteristicas_generales_edit1, (here::here("05.imputar_var_aux/output/caracteristicas_generales_edit1.rds")))
+
+```
+
+## Base de datos de Buen Gobierno
+
+Revisamos los valores de la base de datos de buen gobierno y observamos que tiene valores ausentes para la variable y_transf y g_func_general.
+
+```{r}
+colSums(is.na(buen_gobierno))
+
+miss_gobierno <- buen_gobierno %>%
+	filter(is.na(y_transf) | is.na(g_func_general) ) %>%
+	distinct(codmpio)
+dim(miss_gobierno)
+
+```
+
+Para imputar los ingresos por transferencias y los gastos de funcionamiento general, lo que se realiza es que si el municipio no tiene datos para ninguno de sus años entonces las variables tomarán el valor de cero. Si el municipio tiene datos para otros años se imputará teniendo en cuenta el valor asignado a todo el departamento. 
+
+```{r}
+buen_gobierno_edit <- buen_gobierno %>%
+	group_by(codmpio) %>%
+	mutate(miss_all = all(is.na(y_transf) & is.na(g_func_general))) %>%
+	ungroup() %>%
+	mutate(y_transf_mpio = case_when(miss_all == TRUE ~ 0,
+															TRUE ~ y_transf),
+				 g_func_general_mpio = case_when(miss_all == TRUE ~ 0,
+															TRUE ~ g_func_general)) %>%
+	select(-y_transf, -g_func_general)
+
+colSums(is.na(buen_gobierno_edit))
+```
+Se realiza la imputación para los valores que faltan: 
+
+```{r}
+
+buen_gobierno_edit <- buen_gobierno_edit %>%
+  left_join(deptos_mpios_col %>% select(codmpio, coddepto), by = "codmpio")
+
+suma_por_depto_gob <- buen_gobierno_edit %>%
+	group_by(coddepto) %>%
+	summarise(y_transf_depto = sum(y_transf_mpio, na.rm = TRUE),
+						g_func_general_depto = sum (g_func_general_mpio, na.rm = TRUE)) %>%
+	ungroup()
+
+buen_gobierno_edit1 <- buen_gobierno_edit %>%
+  left_join(suma_por_depto_gob, by = "coddepto") %>%
+	select(codmpio, ano, y_transf_depto, g_func_general_depto)
+
+colSums(is.na(buen_gobierno_edit1))
+
+rm(buen_gobierno_edit)
+rm(buen_gobierno)
+
+saveRDS(buen_gobierno_edit1, (here::here("05.imputar_var_aux/output/buen_gobierno_edit1.rds")))
+
+```
+
+## Base de datos de Conflicto y Violencia
+
+Revisamos los valores de la base de datos de conflicto y violencia y observamos que la variable de H_coca tiene más del 80% de los valores ausentes, por lo cual lo que hacemos es que informamos la variable por la suma de hectareas de coca del departamento.
+
+```{r}
+colSums(is.na(conflicto_violencia))
+# Observamos un municipio con valores nulos, lo quitamos de la base de datos.
+
+conflicto_violencia_edit <- conflicto_violencia %>%
+	filter(!is.na(codmpio))
+colSums(is.na(conflicto_violencia_edit))
+
+prop_miss_hcoca <- mean(is.na(conflicto_violencia_edit$H_coca))
+prop_miss_hcoca
+
+conflicto_violencia_edit <- conflicto_violencia_edit %>%
+  left_join(deptos_mpios_col %>% select(codmpio, coddepto), by = "codmpio")
+
+suma_por_depto_coca <- conflicto_violencia_edit %>%
+	group_by(coddepto) %>%
+	summarise(H_coca_depto = sum(H_coca, na.rm = TRUE))%>%
+	ungroup()
+
+conflicto_violencia_edit1 <- conflicto_violencia_edit %>%
+  left_join(suma_por_depto_coca, by = "coddepto") %>%
+	select(codmpio, ano, H_coca_depto)
+
+colSums(is.na(conflicto_violencia_edit1))
+
+rm(conflicto_violencia)
+rm(conflicto_violencia_edit)
+
+saveRDS(conflicto_violencia_edit1, (here::here("05.imputar_var_aux/output/conflicto_violencia_edit1.rds")))
+
+```
+
+## Base de datos de Educación
+
+Revisamos los valores ausentes para la base de datos de educación: 
+
+```{r}
+colSums(is.na(educacion))
+```
+Eliminaremos el registro del municipio que tiene valor faltante. 
+
+Para las demás variables sucede que la variable asistesc solo esta para los años 1993, 2005 y 2018. Lo que hacemos es que usamos: 
+
+Los valores del censo 1993 para la decada del 90.
+Los valores del censo del 2005 para 2000 al 2010.
+Los valores del censo del 2018 para 2011 al 2018.
+
+
+```{r}
+
+educacion_edit <- educacion %>%
+	mutate(year = as.numeric(ano)) %>%
+	filter(!is.na(codmpio)) %>%
+  group_by(codmpio) %>%
+  mutate(
+    asistesc_mpio = case_when(
+      between(year, 1990, 1999) & is.na(asistesc) ~ asistesc[which.min(abs(year - 1993))],
+      between(year, 2000, 2009) & is.na(asistesc) ~ asistesc[which.min(abs(year - 2005))],
+      between(year, 2010, 2022) & is.na(asistesc) ~ asistesc[which.min(abs(year - 2018))],
+      TRUE ~ asistesc
+    )) %>%
+	ungroup() %>%
+	  mutate(source_asistesc = case_when(
+      between(year, 1990, 1999) ~ "1993",
+      between(year, 2000, 2009) ~ "2005",
+      between(year, 2010, 2022) ~ "2018",
+      TRUE ~ ano))
+```
+
+Para los datos de total de personas alfabetas per_alfa:
+
+Usamos los datos de 1985 para 1985-1989.
+Usamos los datos de 1993 para 1990-1999.
+Usamos los datos de 2005 para 2000-2009.
+Usamos los datos de 2018 para 2010-2020.
+
+```{r}
+
+educacion_edit1 <- educacion_edit %>%
+  group_by(codmpio) %>%
+  mutate(
+    per_alfa_mpio = case_when(
+      between(year, 1985, 1989) & is.na(per_alfa) ~ per_alfa[which.min(abs(year - 1985))],
+      between(year, 1990, 1999) & is.na(per_alfa) ~ per_alfa[which.min(abs(year - 1993))],
+      between(year, 2000, 2009) & is.na(per_alfa) ~ per_alfa[which.min(abs(year - 2005))],
+      between(year, 2010, 2022) & is.na(per_alfa) ~ per_alfa[which.min(abs(year - 2018))],
+      TRUE ~ per_alfa
+    )) %>%
+	ungroup() %>%
+	  mutate(source_per_alfa = case_when(
+      between(year, 1985, 1989) ~ "1985",
+      between(year, 1990, 1999) ~ "1993",
+      between(year, 2000, 2009) ~ "2005",
+      between(year, 2010, 2022) ~ "2018",
+      TRUE ~ ano)) %>%
+	select(-asistesc, -per_alfa)
+
+colSums(is.na(educacion_edit1))
+
+```
+Aunque se realiza lo anterior, se continua teniendo valores missings para asistesc_mpio y per_alfa_mpio. Por lo cual, se crearan las variables asistesc_depto y per_alfa_depto que tengan en cuenta la suma por departamento. De igual manera, se crea la variable alumn_total_depto.
+
+```{r}
+educacion_edit2 <- educacion_edit1 %>%
+  left_join(deptos_mpios_col %>% select(codmpio, coddepto), by = "codmpio")
+
+suma_por_depto_educ <- educacion_edit2 %>%
+	group_by(coddepto) %>%
+	summarise(asistesc_depto = sum(asistesc_mpio, na.rm = TRUE),
+						per_alfa_depto = sum(per_alfa_mpio, na.rm = TRUE),
+						alumn_total_depto = sum(alumn_total, na.rm = TRUE))%>%
+	ungroup()
+
+educacion_edit3 <- educacion_edit2 %>%
+  left_join(suma_por_depto_educ, by = "coddepto") %>%
+	select(codmpio, ano, asistesc_depto, per_alfa_depto, alumn_total_depto)
+
+colSums(is.na(educacion_edit3))
+
+rm(educacion)
+rm(educacion_edit)
+rm(educacion_edit1)
+rm(educacion_edit2)
+
+saveRDS(educacion_edit3, (here::here("05.imputar_var_aux/output/educacion_edit3.rds")))
+
+```
+
+## Base de datos de Nacimientos
+
+Revisamos los valores missings para la base de datos de nacimientos: 
+
+```{r}
+colSums(is.na(nacimientos_dane))
+```
+
+Realizamos imputación deductiva por balance dado que los nacimientos totales son la suma de los nacimientos de hombres y los nacimientos de mujeres. 
+
+```{r}
+
+nacimientos_edit <- nacimientos_dane %>%
+	mutate(nac_hombres_mpio = case_when(is.na(nac_hombres) & !is.na(nac_mujeres) ~ tot_nacimientos - nac_mujeres,
+																 TRUE ~ nac_hombres),
+				 nac_mujeres_mpio = case_when(is.na(nac_mujeres) & !is.na(nac_hombres) ~ tot_nacimientos - nac_hombres,
+																 TRUE ~ nac_mujeres),
+				 tot_nacimientos_mpio = tot_nacimientos)%>%
+	select (-nac_hombres, -nac_mujeres, -tot_nacimientos) %>%
+	rename(codmpio = codigo) %>%
+  semi_join(deptos_mpios_col, by = "codmpio")
+
+colSums(is.na(nacimientos_edit))
+rm(nacimientos_dane)
+
+saveRDS(nacimientos_edit, (here::here("05.imputar_var_aux/output/nacimientos_edit.rds")))
+
+```
+
+## Base de datos de Defunciones
+
+Revisamos los valores missings para la base de datos de defunciones: 
+
+```{r}
+colSums(is.na(defunciones_dane))
+```
+
+No tiene valores missing. Así que la guardamos:
+
+```{r}
+saveRDS(defunciones_dane, (here::here("05.imputar_var_aux/output/defunciones_dane.rds")))
+```
+
+## Base de datos de Violencias Unidas
+
+La base de datos de violencias tiene valores missings para la variable de municipio para cada violencia. El porcentaje de faltantes es para el caso de homicidio, desaparición y secuestro menos del 1% y para el reclutamiento forzado menos del 7%. 
+
+Se decide imputar estos registros teniendo en cuenta los vecinos más cercanos dentro de cada departamento:
+
+```{r}
+
+violencias_unidas_edit <- violencias_unidas %>%
+  group_by(dept_code_hecho) %>%
+  group_modify(~ {
+    df <- .x 
+    df_imputado <- kNN(df, variable = c("muni_code_hecho"), k = 5)
+    return(df_imputado)
+  }) %>%
+  ungroup()
+
+colSums(is.na(violencias_unidas_edit))
+
+saveRDS(violencias_unidas_edit, (here::here("05.imputar_var_aux/output/violencias_unidas_edit.rds")))
+
+
+```
+
+
