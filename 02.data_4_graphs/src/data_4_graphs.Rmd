@@ -1,0 +1,107 @@
+---
+title: "Contraste de métodos de imputación estadística en la documentación de víctimas del
+conflicto armado colombiano"
+author: "Valentina Gómez^[[valegome@ucm.es](valegome@ucm.es)]"
+date: '`r format(Sys.time(), "%d %B %Y")`'
+output: pdf_document
+site: "bookdown::bookdown_site"
+lang: es-CO
+fig_width: 4
+fig_height: 2.5
+fontsize: 12pt
+urlcolor: blue
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+# Preparar la base de datos para realización de gráficos
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+pacman::p_load(ggplot2, dplyr, rmarkdown, verdata, LCMCR, here,
+               arrow, dplyr, rlang, purrr, glue, tidyr, stringr, 
+               gridExtra, VIM, verdata, tidyverse, naniar, sf,
+							 arrow)
+
+options(warn = -1)
+
+```
+
+Importamos la base de datos de violencias unidas: 
+
+```{r}
+violencias_unidas <- readRDS(here::here("01.tablas_documentadas/output/violencias_unidas.rds"))
+```
+
+Importamos base de datos de macroregiones de la CEV:
+```{r}
+macro_regiones <- readr::read_delim(here::here("02.data_4_graphs/input/macroregiones_cev.csv"), 
+																		delim = "|", show_col_types = FALSE) %>%
+	dplyr::mutate_all(as.character) %>% 
+	dplyr::rename(muni_code_hecho = cod_mpio) %>%
+	dplyr::mutate(muni_code_hecho = as.character(muni_code_hecho)) %>%
+	dplyr::filter(macroregion != "Sumapaz") %>% 
+	dplyr::distinct(muni_code_hecho, .keep_all = TRUE)
+
+```
+
+Importamos base de datos del DANE de División Política Administrativa:
+```{r}
+dane_divipola <- read_parquet(here::here("02.data_4_graphs/input/DANE-dipo.parquet")) %>%
+	dplyr::select(codigo_departamento, codigo_municipio, 
+								nombre_departamento, nombre_municipio) %>%
+	dplyr::rename(muni_code_hecho = codigo_municipio,
+								dept_code_hecho = codigo_departamento)%>%
+	dplyr::mutate(muni_code_hecho = as.numeric(muni_code_hecho),
+								dept_code_hecho = as.numeric(dept_code_hecho))%>%
+	distinct()
+
+dane_divipola$muni_code_hecho <- as.character(dane_divipola$muni_code_hecho)
+dane_divipola$dept_code_hecho <- as.character(dane_divipola$dept_code_hecho)
+
+```
+
+Importamos el archivo de periodos presidenciales:
+
+```{r}
+periodo_presidencial <- read_delim(here::here("02.data_4_graphs/input/periodo_presidencial.csv"), 
+																	 delim = ";", escape_double = FALSE, trim_ws = TRUE) %>%
+	dplyr::mutate_all(as.character)
+
+```
+
+Realizamos la unión: 
+
+```{r}
+data_4graphs <- violencias_unidas %>%
+	select(-observed, -violencia) %>%
+	left_join(macro_regiones) %>%
+	left_join(dane_divipola, by = c("dept_code_hecho", "muni_code_hecho")) %>%
+	left_join(periodo_presidencial)
+
+data_4graphs$yy_hecho <- as.numeric(data_4graphs$yy_hecho)
+
+data_4graphs <- data_4graphs %>%
+	mutate(periodo_cev = case_when(
+		between(yy_hecho,1944,1957) ~"1944_1957", #Contexto
+		between(yy_hecho,1958,1976) ~"1958_1976", #La paz política se transforma en guerra
+		between(yy_hecho,1977,1990) ~"1977_1990", #La guerra sucia y el fracaso de la paz
+		between(yy_hecho,1991,2001) ~"1991_2001", #El desmadre
+		between(yy_hecho,2002,2015) ~"2002_2015", #De la guerra total a la paz incompleta
+		between(yy_hecho,2016,2020) ~"2016_2020"),#La persistencia del conflicto armado
+		periodo_cev = ifelse(is.na(periodo_cev), "otro", periodo_cev))
+
+data_4graphs$yy_hecho <- as.character(data_4graphs$yy_hecho)
+
+```
+
+Exportamos la base de datos: 
+
+```{r}
+output_dir <- here::here("02.data_4_graphs/output")
+
+rm(violencias_unidas)
+saveRDS(data_4graphs, paste0(output_dir, "/data_4graphs.rds"))
+```
+
