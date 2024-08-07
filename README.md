@@ -11,8 +11,6 @@ El flujo de trabajo consta de 10 pasos y se explican a continuación:
 
 4. [04.depurar_fuentes_externas](https://github.com/vgomezc18/TFM/tree/main/04.depurar_fuentes_externas): En esta carpeta se depuran los datos de nacimientos, de defunciones y los datos de departamentos de Colombia, ya que 2 departamentos no tienen el código que corresponde.
 
-No se incluye la carpeta de inputs por el tamaño de los archivos. 
-
 5. [05.imputar_var_aux](https://github.com/vgomezc18/TFM/tree/main/05.imputar_var_aux): En esta carpeta se imputan las variables auxiliares que posteriormente se utilizaran para la imputación del modelo por donante, regresión y machine learning.
 
 La carpeta de inputs no contiene las bases de datos que se usaron del Panel Municipal de Características Generales del [CEDE](https://datoscede.uniandes.edu.co/es/catalogo-de-microdata), para acceder a ellas es necesario ser estudiante o egresado de la Universidad de los Andes o solicitar permiso para acceder a ellas: 
