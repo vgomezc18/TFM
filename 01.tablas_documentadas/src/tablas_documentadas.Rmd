@@ -1,0 +1,134 @@
+---
+title: "Contraste de métodos de imputación estadística en la documentación de víctimas del
+conflicto armado colombiano"
+author: "Valentina Gómez^[[valegome@ucm.es](valegome@ucm.es)]"
+date: '`r format(Sys.time(), "%d %B %Y")`'
+output: pdf_document
+site: "bookdown::bookdown_site"
+lang: es-CO
+fig_width: 4
+fig_height: 2.5
+fontsize: 12pt
+urlcolor: blue
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+# Generar tablas documentadas por cada violación
+
+Para empezar a trabajar con los datos, se importan teniendo en cuenta el paquete verdata disponible en el GITHUB de HRDAG.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+pacman::p_load(ggplot2, dplyr, rmarkdown, verdata, LCMCR, here,
+               arrow, dplyr, rlang, purrr, glue, tidyr, stringr, 
+               gridExtra, VIM, verdata, tidyverse, naniar)
+
+options(warn = -1)
+
+```
+
+Funciones necesarias:
+
+```{r functions, include = FALSE}
+
+# Función para autenticar y cargar réplicas
+cargar_datos <- function(carpeta, nombre, replicas) {
+  verdata::confirm_files(here::here(carpeta), nombre, replicas)
+  datos <- verdata::read_replicates(here::here(carpeta), nombre, replicas)
+  datos <- datos %>% select(-starts_with("in_"))
+  return(datos)
+}
+
+# Función para obtener tabla documentada
+obtener_tabla_documentada <- function(nombre, datos, strata_vars) {
+  if (nombre == "desaparicion") {
+    verdata::summary_observed(
+      nombre,
+      datos,
+      strata_vars = strata_vars,
+      conflict_filter = TRUE,
+      forced_dis_filter = TRUE,
+      edad_minors_filter = FALSE,
+      include_props = FALSE
+    )
+  } else {
+    verdata::summary_observed(
+      nombre,
+      datos,
+      strata_vars = strata_vars,
+      conflict_filter = TRUE,
+      edad_minors_filter = FALSE,
+      include_props = FALSE
+    )
+  }
+}
+
+```
+
+Violaciones y sus parámetros:
+
+```{r}
+# Lista de violaciones 
+violaciones <- list(
+  desaparicion = list(carpeta = "01.tablas_documentadas/input/verdata-parquet/desaparicion", replicas = 1:10),
+  homicidio = list(carpeta = "01.tablas_documentadas/input/verdata-parquet/homicidio", replicas = 1:10),
+  reclutamiento = list(carpeta = "01.tablas_documentadas/input/verdata-parquet/reclutamiento", replicas = 1:10),
+  secuestro = list(carpeta = "01.tablas_documentadas/input/verdata-parquet/secuestro", replicas = 1:10)
+)
+
+# Variables de estratificación
+strata_vars <- c("match_group_id", "dept_code_hecho", "edad_categoria", "edad_jep", "etnia", "muni_code_hecho", "p_str", "sexo", "yy_hecho")
+
+# Carpeta de output
+output_dir <- here::here("01.tablas_documentadas/output")
+
+```
+
+Procesar cada tipo de violación:
+
+```{r}
+# Listas para guardar resultados
+tablas_documentadas <- list()
+plots_NA <- list()
+
+# Bucle para procesar cada tipo de violación
+for (nombre in names(violaciones)) {
+  # Cargar datos
+  config <- violaciones[[nombre]]
+  datos <- cargar_datos(config$carpeta, nombre, config$replicas)
+
+  # Obtener tabla documentada
+  tabla_documentada <- obtener_tabla_documentada(nombre, datos, strata_vars)
+
+  # Guardar tabla documentada en archivo .rds
+  output_file_rds <- file.path(output_dir, paste0("tabla_documentada_", nombre, ".rds"))
+  saveRDS(tabla_documentada, output_file_rds)
+
+  # Guardar resultados en listas
+  tablas_documentadas[[nombre]] <- tabla_documentada
+
+  # Asignar nombres específicos a los objetos
+  assign(paste0("tabla_documentada_", nombre), tabla_documentada)
+}
+
+```
+
+Unir las violaciones en una sola base de datos: 
+
+```{r}
+# Agregar una columna 'fuente' a cada base de datos
+tabla_documentada_homicidio$violencia <- "homicidio"
+tabla_documentada_desaparicion$violencia <- "desaparicion"
+tabla_documentada_secuestro$violencia <- "secuestro"
+tabla_documentada_reclutamiento$violencia <- "reclutamiento"
+
+# Unir las bases de datos hacia abajo (por filas)
+violencias_unidas <- rbind(tabla_documentada_homicidio, tabla_documentada_desaparicion,
+											 tabla_documentada_secuestro, tabla_documentada_reclutamiento)
+
+saveRDS(violencias_unidas, paste0(output_dir, "/violencias_unidas.rds"))
+```
+
