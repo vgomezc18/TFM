@@ -1,0 +1,182 @@
+---
+title: "Contraste de métodos de imputación estadística en la documentación de víctimas del
+conflicto armado colombiano"
+author: "Valentina Gómez^[[valegome@ucm.es](valegome@ucm.es)]"
+date: '`r format(Sys.time(), "%d %B %Y")`'
+output: pdf_document
+site: "bookdown::bookdown_site"
+lang: es-CO
+fig_width: 4
+fig_height: 2.5
+fontsize: 12pt
+urlcolor: blue
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+# Unión de las variables auxiliares con la base de datos de violencias unidas
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(readxl, tidyverse, dplyr, validate, VIM, simputation, hot.deck)
+```
+
+Importar datos: 
+
+```{r}
+
+input_dir <- here::here("05.imputar_var_aux/output")
+output_dir <- here::here("06.union/output")
+
+
+buen_gobierno_edit1 <- readRDS(paste0(input_dir,"/buen_gobierno_edit1.rds"))
+caracteristicas_generales_edit1 <- readRDS(paste0(input_dir,"/caracteristicas_generales_edit1.rds"))
+conflicto_violencia_edit1 <- readRDS(paste0(input_dir,"/conflicto_violencia_edit1.rds"))
+educacion_edit3 <- readRDS(paste0(input_dir,"/educacion_edit3.rds"))
+nacimientos_edit <- readRDS(paste0(input_dir,"/nacimientos_edit.rds"))
+defunciones_dane <- readRDS(paste0(input_dir,"/defunciones_dane.rds"))
+violencias_unidas_edit <- readRDS(paste0(input_dir,"/violencias_unidas_edit.rds"))
+municipios_frontera <- readRDS(paste0(input_dir,"/municipios_frontera.rds"))
+
+deptos_mpios_col <- readRDS(here::here("04.depurar_fuentes_externas/output/departamentos_colombia.rds"))
+
+
+```
+
+A violencias unidas (a años mayores o iguales a 1993) unirle población urbana, rural, area en km2, 
+distancia a la capital:
+
+```{r}
+violencias_unidas_join <- violencias_unidas_edit %>%
+	mutate(year = as.numeric(yy_hecho)) %>%
+	filter(year >= 1993) %>%
+	select(-year) %>%
+	left_join(caracteristicas_generales_edit1, by = c("yy_hecho" = "ano", 
+																							"muni_code_hecho" = "codmpio"))
+
+colSums(is.na(violencias_unidas_join))
+```
+
+
+Si el municipio tiene índice rural mayor o igual al 50%, entonces es predominantemente rural:
+
+```{r}
+violencias_unidas_join <- violencias_unidas_join %>%
+	mutate(predo_rural_mpio = case_when(indrural_mpio >= 0.50 ~ 1,
+																 indrural_mpio < 0.50 ~ 0,
+																 TRUE ~ NA))
+
+colSums(is.na(violencias_unidas_join))
+```
+
+Unir y_transf y g_func_general: 
+
+```{r}
+violencias_unidas_join <- violencias_unidas_join %>%
+	left_join(buen_gobierno_edit1, by = c("yy_hecho" = "ano",
+																	"muni_code_hecho" = "codmpio"))
+
+colSums(is.na(violencias_unidas_join))
+
+```
+
+Unión hectáreas cultivadas de coca:
+
+```{r}
+violencias_unidas_join <- violencias_unidas_join %>%
+	left_join(conflicto_violencia_edit1, by = c("yy_hecho" = "ano",
+																				"muni_code_hecho" = "codmpio"))
+
+colSums(is.na(violencias_unidas_join))
+
+```
+
+
+Unión variables de educación, con base al CENSO y el CEDE: 
+
+```{r}
+violencias_unidas_join <- violencias_unidas_join %>%
+	left_join(educacion_edit3, by = c("yy_hecho" = "ano", 
+															"muni_code_hecho" = "codmpio"))
+
+colSums(is.na(violencias_unidas_join))
+
+```
+Unión de municipios frontera:
+
+```{r}
+violencias_unidas_join <- violencias_unidas_join %>%
+	left_join(municipios_frontera, by = c("muni_code_hecho" = "codmpio"))%>%
+	mutate(frontera_mpio = ifelse(is.na(frontera), 0, frontera))%>%
+	select(-frontera)
+
+colSums(is.na(violencias_unidas_join))
+```
+
+Unión de nacimientos:
+
+```{r}
+
+violencias_unidas_join <- violencias_unidas_join %>%
+	left_join(nacimientos_edit, by = c("muni_code_hecho" = "codmpio",
+																		 "yy_hecho" = "ano"))
+
+#puede haber problemas con municipio 27580 porque en el dane aparece duplicado.
+
+colSums(is.na(violencias_unidas_join))
+```
+Unión de defunciones:
+
+```{r}
+
+violencias_unidas_join <- violencias_unidas_join %>%
+	left_join(defunciones_dane, by = c("muni_code_hecho" = "codmpio",
+																		 "yy_hecho" = "ano"))
+
+colSums(is.na(violencias_unidas_join))
+```
+Cuando se realiza la unión de los nacimientos y las defunciones, hay municipios que no tienen información de nacimientos ni defunciones, por lo cual se crea la variable nacimientos_depto y defunciones_depto:
+
+```{r}
+
+suma_por_depto_nac_def <- violencias_unidas_join %>%
+	group_by(dept_code_hecho) %>%
+	summarise(tot_nacimientos_depto = sum(tot_nacimientos_mpio, na.rm = TRUE),
+						tot_defunciones_depto = sum(defunciones_mpio, na.rm = TRUE),
+						nac_hombres_depto = sum(nac_hombres_mpio, na.rm = TRUE),
+						nac_mujeres_depto = sum(nac_mujeres_mpio, na.rm = TRUE),)%>%
+	ungroup()
+
+violencias_unidas_join_edit <- violencias_unidas_join %>%
+  left_join(suma_por_depto_nac_def, by = "dept_code_hecho")
+
+colSums(is.na(violencias_unidas_join_edit))
+```
+Vamos a añadirle a la base de datos también las macroregiones por si nos es util para comparar los modelos de imputación: 
+
+```{r}
+macro_regiones <- readr::read_delim(here::here("02.data_4_graphs/input/macroregiones_cev.csv"), 
+																		delim = "|", show_col_types = FALSE) %>%
+	dplyr::mutate_all(as.character) %>% 
+	dplyr::rename(muni_code_hecho = cod_mpio) %>%
+	dplyr::mutate(muni_code_hecho = as.character(muni_code_hecho)) %>%
+	dplyr::filter(macroregion != "Sumapaz") %>% 
+	dplyr::distinct(muni_code_hecho, .keep_all = TRUE)
+
+violencias_unidas_join_edit1 <- violencias_unidas_join_edit %>%
+	left_join(macro_regiones)  %>%
+	mutate(macroregion = case_when(muni_code_hecho %in% c("88001", "88564") ~ "Caribe e Insular",
+																 TRUE ~ macroregion))
+
+colSums(is.na(violencias_unidas_join_edit1))
+
+```
+
+Exportar base de datos:
+
+```{r}
+saveRDS(violencias_unidas_join_edit1, (paste0(output_dir,"/violencias_unidas_aux.rds")))
+```
+
+
+
