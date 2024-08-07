@@ -1,0 +1,78 @@
+---
+title: "Contraste de métodos de imputación estadística en la documentación de víctimas del
+conflicto armado colombiano"
+author: "Valentina Gómez^[[valegome@ucm.es](valegome@ucm.es)]"
+date: '`r format(Sys.time(), "%d %B %Y")`'
+output: pdf_document
+site: "bookdown::bookdown_site"
+lang: es-CO
+fig_width: 4
+fig_height: 2.5
+fontsize: 12pt
+urlcolor: blue
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+# Descriptivos generales
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(tidyverse, dplyr, ggplot2, data.table, scales, gridExtra)
+```
+
+Importar datos: 
+
+```{r}
+
+input_dir <- here::here("06.union/output")
+output_dir <- here::here("07.descriptivos/output")
+
+
+violencias_unidas_aux <- readRDS(paste0(input_dir,"/violencias_unidas_aux.rds")) %>%
+	as.data.table()
+
+```
+
+
+Conteos de número de observaciones por variable de interés en la imputación:
+
+```{r}
+
+plot_bar <- function(dataframe, variable, titulo) {
+  # Agrupar, resumir y ordenar los datos
+  summary_data <- dataframe %>%
+  	filter(yy_hecho >= 1996) %>%
+    group_by(.data[[variable]]) %>%
+    summarise(n_vic = n(), .groups = 'drop') %>%
+    arrange(desc(n_vic))
+  
+  # Convertir la variable a factor con niveles ordenados de mayor a menor
+  summary_data[[variable]] <- factor(summary_data[[variable]], levels = summary_data[[variable]])
+  
+  # Crear el gráfico de barras
+  ggplot(summary_data, aes(x = .data[[variable]], y = n_vic, fill = .data[[variable]])) +
+    geom_bar(stat = "identity") +
+    geom_text(aes(label = number(n_vic, big.mark = ".", decimal.mark = ",")), vjust = -0.5, size = 3.5) +
+    scale_y_continuous(labels = number_format(big.mark = ".", decimal.mark = ",")) +  # Formatear los números del eje y
+    theme_classic() +
+    labs(title = titulo, x = variable, y = "Número de víctimas") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+}
+
+
+
+# Crear los gráficos
+p1 <- plot_bar(violencias_unidas_aux, "etnia", "Distribución Etnia")
+p2 <- plot_bar(violencias_unidas_aux, "p_str", "Distribución Perpetrador")
+p3 <- plot_bar(violencias_unidas_aux, "edad_jep", "Distribución Edad")
+p4 <- plot_bar(violencias_unidas_aux, "sexo", "Distribución Sexo")
+
+# Combinar los gráficos en un solo panel
+plot_count_vars <- grid.arrange(p1, p2, p3, p4, ncol = 2)
+
+ggsave(paste0(output_dir,"/plot_count_vars.jpg"), plot_count_vars,
+							width = 14, height = 10, units = "in")
+
+```
+
