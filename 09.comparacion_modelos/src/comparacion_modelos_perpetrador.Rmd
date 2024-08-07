@@ -1,0 +1,441 @@
+---
+title: "Contraste de métodos de imputación estadística en la documentación de víctimas del
+conflicto armado colombiano"
+author: "Valentina Gómez^[[valegome@ucm.es](valegome@ucm.es)]"
+date: '`r format(Sys.time(), "%d %B %Y")`'
+output: pdf_document
+site: "bookdown::bookdown_site"
+lang: es-CO
+fig_width: 4
+fig_height: 2.5
+fontsize: 12pt
+urlcolor: blue
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+# Comparación modelos
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+require(pacman)
+p_load(here, readr, tidyverse, dplyr, validate, data.table, missForest, 
+			 VIM, lattice, simputation, mice, skimr, compareDF)
+
+
+```
+
+# Importación de datos:
+
+```{r}
+
+donante_dir <- here::here("08.modelos_imputacion/output")
+documentado_dir <- here::here("01.tablas_documentadas/output")
+
+output_dir <- here::here("09.comparacion_modelos/output")
+
+imputacion_donante_p_str <- readRDS(paste0(donante_dir,"/imputacion_donante_p_str.rds")) 
+
+# Función para cargar réplicas
+cargar_replicas <- function(nombre_directorio, nombre_archivo, replicas) {
+  verdata::read_replicates(here::here(nombre_directorio), nombre_archivo, replicas)
+}
+
+# Función para resumir tablas documentadas
+resumir_tabla_documentada <- function(nombre_archivo, replicas, strata_vars, conflict_filter = TRUE, edad_minors_filter = FALSE, include_props = TRUE, forced_dis_filter = FALSE) {
+	
+  verdata::summary_observed(nombre_archivo,
+                            replicas, 
+                            strata_vars = strata_vars,
+                            conflict_filter = conflict_filter,
+                            edad_minors_filter = edad_minors_filter,
+                            include_props = include_props,
+                            forced_dis_filter = forced_dis_filter)
+}
+
+# Definir parámetros comunes
+strata_vars_comunes <- c("p_str")
+replicas <- c(1:10)
+
+# Cargar réplicas
+replicas_desaparicion <- cargar_replicas("01.tablas_documentadas/input/verdata-parquet/desaparicion", "desaparicion", replicas)
+
+replicas_homicidio <- cargar_replicas("01.tablas_documentadas/input/verdata-parquet/homicidio", "homicidio", replicas)
+
+replicas_secuestro <- cargar_replicas("01.tablas_documentadas/input/verdata-parquet/secuestro", "secuestro", replicas)
+
+replicas_reclutamiento <- cargar_replicas("01.tablas_documentadas/input/verdata-parquet/reclutamiento", "reclutamiento", replicas)
+
+# Crear tablas documentadas
+tabla_documentada_desaparicion <- resumir_tabla_documentada("desaparicion", replicas_desaparicion, strata_vars_comunes, forced_dis_filter = TRUE)
+
+tabla_documentada_homicidio <- resumir_tabla_documentada("homicidio", replicas_homicidio, strata_vars_comunes)
+
+tabla_documentada_secuestro <- resumir_tabla_documentada("secuestro", replicas_secuestro, strata_vars_comunes)
+
+tabla_documentada_reclutamiento <- resumir_tabla_documentada("reclutamiento", replicas_reclutamiento, strata_vars_comunes)
+
+```
+
+
+Inserto los resultados por donante: 
+
+```{r}
+donante_p_str_desap <- rbind(imputacion_donante_p_str[["desaparicion_1996_2000"]], 
+			imputacion_donante_p_str[["desaparicion_2001_2005"]],
+			imputacion_donante_p_str[["desaparicion_2006_2010"]],
+			imputacion_donante_p_str[["desaparicion_2011_2016"]]) %>%
+	ungroup()%>%
+	group_by(p_str)%>%
+	summarize(imp_donante=sum(imp_donante))
+
+donante_p_str_homi <- rbind(imputacion_donante_p_str[["homicidio_1996_2000"]], 
+			imputacion_donante_p_str[["homicidio_2001_2005"]],
+			imputacion_donante_p_str[["homicidio_2006_2010"]],
+			imputacion_donante_p_str[["homicidio_2011_2016"]])%>%
+	ungroup()%>%
+	group_by(p_str)%>%
+	summarize(imp_donante=sum(imp_donante))
+
+donante_p_str_secue <- rbind(imputacion_donante_p_str[["secuestro_1996_2000"]], 
+			imputacion_donante_p_str[["secuestro_2001_2005"]],
+			imputacion_donante_p_str[["secuestro_2006_2010"]],
+			imputacion_donante_p_str[["secuestro_2011_2016"]])%>%
+	ungroup()%>%
+	group_by(p_str)%>%
+	summarize(imp_donante=sum(imp_donante))
+
+donante_p_str_reclu <- rbind(imputacion_donante_p_str[["reclutamiento_1996_2000"]], 
+			imputacion_donante_p_str[["reclutamiento_2001_2005"]],
+			imputacion_donante_p_str[["reclutamiento_2006_2010"]],
+			imputacion_donante_p_str[["reclutamiento_2011_2016"]])%>%
+	ungroup()%>%
+	group_by(p_str)%>%
+	summarize(imp_donante=sum(imp_donante))
+
+```
+
+Inserto los resultados de JEP-CEV-HRDAG:
+
+```{r}
+
+tabla_combinada_desaparicion <- verdata::combine_replicates("desaparicion",
+                                                tabla_documentada_desaparicion,
+                                                replicas_desaparicion, 
+                                                strata_vars = c("p_str"),
+                                                conflict_filter = TRUE,
+                                                forced_dis_filter = TRUE,
+                                                edad_minors_filter = FALSE,
+                                                include_props = TRUE)
+
+tabla_combinada_desaparicion <- tabla_combinada_desaparicion %>% 
+  select(p_str, observed, obs_prop_na, obs_prop, imp_lo, imp_mean, imp_hi,
+         imp_lo_p, imp_mean_p, imp_hi_p ) %>%
+	left_join(donante_p_str_desap) %>%
+	mutate(p_str = case_when(p_str == 'PARA' ~ "Paramilitares",
+													 p_str == 'EST' ~ "Estado",
+													 p_str == 'GUE-ELN' ~ "ELN",
+													 p_str == 'GUE-FARC' ~ "FARC",
+													 p_str == 'GUE-OTRO' ~ "Otra guerrilla",
+													 p_str == 'multiple' ~ "Múltiple",
+													 p_str == 'OTRO' ~ "Otro"))
+
+tabla_combinada_homicidio <- verdata::combine_replicates("homicidio",
+                                                tabla_documentada_homicidio,
+                                                replicas_homicidio, 
+                                                strata_vars = c("p_str"),
+                                                conflict_filter = TRUE,
+                                                edad_minors_filter = FALSE,
+                                                include_props = TRUE)
+
+tabla_combinada_homicidio <- tabla_combinada_homicidio %>% 
+  select(p_str, observed, obs_prop_na, obs_prop, imp_lo, imp_mean, imp_hi,
+         imp_lo_p, imp_mean_p, imp_hi_p ) %>%
+	left_join(donante_p_str_homi) %>%
+	mutate(p_str = case_when(p_str == 'PARA' ~ "Paramilitares",
+													 p_str == 'EST' ~ "Estado",
+													 p_str == 'GUE-ELN' ~ "ELN",
+													 p_str == 'GUE-FARC' ~ "FARC",
+													 p_str == 'GUE-OTRO' ~ "Otra guerrilla",
+													 p_str == 'multiple' ~ "Múltiple",
+													 p_str == 'OTRO' ~ "Otro"))
+
+tabla_combinada_secuestro <- verdata::combine_replicates("secuestro",
+                                                tabla_documentada_secuestro,
+                                                replicas_secuestro, 
+                                                strata_vars = c("p_str"),
+                                                conflict_filter = TRUE,
+                                                edad_minors_filter = FALSE,
+                                                include_props = TRUE)
+
+tabla_combinada_secuestro <- tabla_combinada_secuestro %>% 
+  select(p_str, observed, obs_prop_na, obs_prop, imp_lo, imp_mean, imp_hi,
+         imp_lo_p, imp_mean_p, imp_hi_p ) %>%
+	left_join(donante_p_str_secue) %>%
+	mutate(p_str = case_when(p_str == 'PARA' ~ "Paramilitares",
+													 p_str == 'EST' ~ "Estado",
+													 p_str == 'GUE-ELN' ~ "ELN",
+													 p_str == 'GUE-FARC' ~ "FARC",
+													 p_str == 'GUE-OTRO' ~ "Otra guerrilla",
+													 p_str == 'multiple' ~ "Múltiple",
+													 p_str == 'OTRO' ~ "Otro"))
+
+tabla_combinada_reclutamiento <- verdata::combine_replicates("reclutamiento",
+                                                tabla_documentada_reclutamiento,
+                                                replicas_reclutamiento, 
+                                                strata_vars = c("p_str"),
+                                                conflict_filter = TRUE,
+                                                edad_minors_filter = FALSE,
+                                                include_props = TRUE)
+
+tabla_combinada_reclutamiento <- tabla_combinada_reclutamiento %>% 
+  select(p_str, observed, obs_prop_na, obs_prop, imp_lo, imp_mean, imp_hi,
+         imp_lo_p, imp_mean_p, imp_hi_p ) %>%
+	left_join(donante_p_str_reclu) %>%
+	mutate(p_str = case_when(p_str == 'PARA' ~ "Paramilitares",
+													 p_str == 'EST' ~ "Estado",
+													 p_str == 'GUE-ELN' ~ "ELN",
+													 p_str == 'GUE-FARC' ~ "FARC",
+													 p_str == 'GUE-OTRO' ~ "Otra guerrilla",
+													 p_str == 'multiple' ~ "Múltiple",
+													 p_str == 'OTRO' ~ "Otro"))
+
+```
+
+# Desaparición - Perpetrador
+
+## Comparación de resultados
+
+```{r}
+# tabla_combinada_desaparicion <- tabla_combinada_desaparicion %>% 
+#   na.omit()
+
+plot_desap_perp_imp <- ggplot(tabla_combinada_desaparicion,
+       aes(x = reorder(p_str, -observed), y = 0)) +
+  geom_crossbar(aes(ymin = imp_lo, ymax = imp_hi, fill = "Rango y valor medio de imputación JEP-CEV-HRDAG"),
+                color = '#63aee3') +
+  geom_col(aes(y = observed, fill = "Observado"), color = "#2F2F2F") +
+  geom_point(aes(y = imp_mean), pch = 21, color = "#1F74B1", fill = '#63aee3',
+             size = 1, stroke = 1.1) +
+  geom_point(aes(y = imp_donante, color = "Imputado por donante", shape = "Imputado por donante"), 
+             fill = "red", size = 1, stroke = 1.1, show.legend = TRUE) +
+  scale_y_continuous(labels = function(n){format(n, scientific = FALSE)}) +
+	scale_y_continuous(breaks = seq(0, max(tabla_combinada_desaparicion$imp_hi,
+																				 na.rm = TRUE), by = 10000)) +
+  theme_minimal() +
+  theme(legend.title = element_text(size = 6, face = "bold"),
+        legend.text = element_text(size = 9, face = "bold"),
+        legend.position = c(0.7, 0.7)) +
+  theme(axis.text.x = element_text(angle = 50, hjust = 1, face = "bold")) +
+  theme(legend.position = "top",
+        legend.margin = margin(l = -10, unit = "pt")) + # Mueve la leyenda hacia la izquierda
+  labs(x = "Perpetradores",
+       y = "Número de víctimas",
+       fill = "",
+       color = "",
+       shape = "",
+       title = "Desapariciones Forzadas") +
+  scale_fill_manual(values = c("Observado" = "#2F2F2F",
+                               "Rango y valor medio de imputación JEP-CEV-HRDAG" = '#63aee3')) +
+  scale_color_manual(values = c("Imputado por donante" = "red")) +
+  scale_shape_manual(values = c("Imputado por donante" = 21)) +
+  guides(shape = guide_legend(override.aes = list(size = 2)),
+         fill = guide_legend(
+           override.aes = list(
+             shape = c(NA, 21), 
+             size = c(1, 1), 
+             color = c("#2F2F2F", "#1F74B1"), 
+             fill = c("#2F2F2F", "#63aee3")
+           ),
+           order = 1
+         ),
+         color = guide_legend(override.aes = list(shape = 21, size = 2)))
+
+
+plot_desap_perp_imp
+
+ggsave(paste0(output_dir,"/p_str/plot_desap_perp_imp.jpg"),
+			 plot_desap_perp_imp, width = 7, height = 7)
+
+```
+
+
+# Homicidio - Perpetrador
+
+## Comparación de resultados
+
+```{r}
+# tabla_combinada_homicidio <- tabla_combinada_homicidio %>% 
+#   na.omit()
+
+plot_homi_perp_imp <- ggplot(tabla_combinada_homicidio,
+       aes(x = reorder(p_str, -observed), y = 0)) +
+  geom_crossbar(aes(ymin = imp_lo, ymax = imp_hi, fill = "Rango y valor medio de imputación JEP-CEV-HRDAG"),
+                color = '#63aee3') +
+  geom_col(aes(y = observed, fill = "Observado"), color = "#2F2F2F") +
+  geom_point(aes(y = imp_mean), pch = 21, color = "#1F74B1", fill = '#63aee3',
+             size = 1, stroke = 1.1) +
+  geom_point(aes(y = imp_donante, color = "Imputado por donante", shape = "Imputado por donante"), 
+             fill = "red", size = 1, stroke = 1.1, show.legend = TRUE) +
+  scale_y_continuous(labels = function(n){format(n, scientific = FALSE)}) +
+	scale_y_continuous(breaks = seq(0, max(tabla_combinada_homicidio$imp_hi,
+																				 na.rm = TRUE), by = 20000)) +
+  theme_minimal() +
+  theme(legend.title = element_text(size = 6, face = "bold"),
+        legend.text = element_text(size = 9, face = "bold"),
+        legend.position = c(0.7, 0.7)) +
+  theme(axis.text.x = element_text(angle = 50, hjust = 1, face = "bold")) +
+  theme(legend.position = "top",
+        legend.margin = margin(l = -10, unit = "pt")) + # Mueve la leyenda hacia la izquierda
+  labs(x = "Perpetradores",
+       y = "Número de víctimas",
+       fill = "",
+       color = "",
+       shape = "",
+       title = "Homicidios") +
+  scale_fill_manual(values = c("Observado" = "#2F2F2F",
+                               "Rango y valor medio de imputación JEP-CEV-HRDAG" = '#63aee3')) +
+  scale_color_manual(values = c("Imputado por donante" = "red")) +
+  scale_shape_manual(values = c("Imputado por donante" = 21)) +
+  guides(shape = guide_legend(override.aes = list(size = 2)),
+         fill = guide_legend(
+           override.aes = list(
+             shape = c(NA, 21), 
+             size = c(1, 1), 
+             color = c("#2F2F2F", "#1F74B1"), 
+             fill = c("#2F2F2F", "#63aee3")
+           ),
+           order = 1
+         ),
+         color = guide_legend(override.aes = list(shape = 21, size = 2)))
+
+
+
+plot_homi_perp_imp
+
+ggsave(paste0(output_dir,"/p_str/plot_homi_perp_imp.jpg"),
+			 plot_homi_perp_imp, width = 7, height = 7)
+
+```
+
+
+# Secuestro - Perpetrador
+
+## Comparación de resultados
+
+```{r}
+# tabla_combinada_secuestro <- tabla_combinada_secuestro %>% 
+#   na.omit()
+
+plot_secue_perp_imp <- ggplot(tabla_combinada_secuestro,
+       aes(x = reorder(p_str, -observed), y = 0)) +
+  geom_crossbar(aes(ymin = imp_lo, ymax = imp_hi, fill = "Rango y valor medio de imputación JEP-CEV-HRDAG"),
+                color = '#63aee3') +
+  geom_col(aes(y = observed, fill = "Observado"), color = "#2F2F2F") +
+  geom_point(aes(y = imp_mean), pch = 21, color = "#1F74B1", fill = '#63aee3',
+             size = 1, stroke = 1.1) +
+  geom_point(aes(y = imp_donante, color = "Imputado por donante", shape = "Imputado por donante"), 
+             fill = "red", size = 1, stroke = 1.1, show.legend = TRUE) +
+  scale_y_continuous(labels = function(n){format(n, scientific = FALSE)}) +
+	scale_y_continuous(breaks = seq(0, max(tabla_combinada_secuestro$imp_hi,
+																				 na.rm = TRUE), by = 2500)) +
+  theme_minimal() +
+  theme(legend.title = element_text(size = 6, face = "bold"),
+        legend.text = element_text(size = 9, face = "bold"),
+        legend.position = c(0.7, 0.7)) +
+  theme(axis.text.x = element_text(angle = 50, hjust = 1, face = "bold")) +
+  theme(legend.position = "top",
+        legend.margin = margin(l = -10, unit = "pt")) + # Mueve la leyenda hacia la izquierda
+  labs(x = "Perpetradores",
+       y = "Número de víctimas",
+       fill = "",
+       color = "",
+       shape = "",
+       title = "Secuestros") +
+  scale_fill_manual(values = c("Observado" = "#2F2F2F",
+                               "Rango y valor medio de imputación JEP-CEV-HRDAG" = '#63aee3')) +
+  scale_color_manual(values = c("Imputado por donante" = "red")) +
+  scale_shape_manual(values = c("Imputado por donante" = 21)) +
+  guides(shape = guide_legend(override.aes = list(size = 2)),
+         fill = guide_legend(
+           override.aes = list(
+             shape = c(NA, 21), 
+             size = c(1, 1), 
+             color = c("#2F2F2F", "#1F74B1"), 
+             fill = c("#2F2F2F", "#63aee3")
+           ),
+           order = 1
+         ),
+         color = guide_legend(override.aes = list(shape = 21, size = 2)))
+
+
+
+plot_secue_perp_imp
+
+ggsave(paste0(output_dir,"/p_str/plot_secue_perp_imp.jpg"),
+			 plot_secue_perp_imp, width = 7, height = 7)
+
+```
+
+
+# Reclutamientos - Perpetrador
+
+## Comparación de resultados
+
+```{r}
+# tabla_combinada_reclutamiento <- tabla_combinada_reclutamiento %>% 
+#   na.omit()
+
+plot_reclu_perp_imp <- ggplot(tabla_combinada_reclutamiento,
+       aes(x = reorder(p_str, -observed), y = 0)) +
+  geom_crossbar(aes(ymin = imp_lo, ymax = imp_hi, fill = "Rango y valor medio de imputación JEP-CEV-HRDAG"),
+                color = '#63aee3') +
+  geom_col(aes(y = observed, fill = "Observado"), color = "#2F2F2F") +
+  geom_point(aes(y = imp_mean), pch = 21, color = "#1F74B1", fill = '#63aee3',
+             size = 1, stroke = 1.1) +
+  geom_point(aes(y = imp_donante, color = "Imputado por donante", shape = "Imputado por donante"), 
+             fill = "red", size = 1, stroke = 1.1, show.legend = TRUE) +
+  scale_y_continuous(labels = function(n){format(n, scientific = FALSE)}) +
+	scale_y_continuous(breaks = seq(0, max(tabla_combinada_reclutamiento$imp_hi,
+																				 na.rm = TRUE), by = 1000)) +
+  theme_minimal() +
+  theme(legend.title = element_text(size = 6, face = "bold"),
+        legend.text = element_text(size = 9, face = "bold"),
+        legend.position = c(0.7, 0.7)) +
+  theme(axis.text.x = element_text(angle = 50, hjust = 1, face = "bold")) +
+  theme(legend.position = "top",
+        legend.margin = margin(l = -10, unit = "pt")) + # Mueve la leyenda hacia la izquierda
+  labs(x = "Perpetradores",
+       y = "Número de víctimas",
+       fill = "",
+       color = "",
+       shape = "",
+       title = "Reclutamientos") +
+  scale_fill_manual(values = c("Observado" = "#2F2F2F",
+                               "Rango y valor medio de imputación JEP-CEV-HRDAG" = '#63aee3')) +
+  scale_color_manual(values = c("Imputado por donante" = "red")) +
+  scale_shape_manual(values = c("Imputado por donante" = 21)) +
+  guides(shape = guide_legend(override.aes = list(size = 2)),
+         fill = guide_legend(
+           override.aes = list(
+             shape = c(NA, 21), 
+             size = c(1, 1), 
+             color = c("#2F2F2F", "#1F74B1"), 
+             fill = c("#2F2F2F", "#63aee3")
+           ),
+           order = 1
+         ),
+         color = guide_legend(override.aes = list(shape = 21, size = 2)))
+
+
+
+plot_reclu_perp_imp
+
+ggsave(paste0(output_dir,"/p_str/plot_reclu_perp_imp.jpg"),
+			 plot_reclu_perp_imp, width = 7, height = 7)
+
+```
+
+

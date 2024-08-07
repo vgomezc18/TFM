@@ -1,0 +1,877 @@
+---
+title: "Contraste de métodos de imputación estadística en la documentación de víctimas del
+conflicto armado colombiano"
+author: "Valentina Gómez^[[valegome@ucm.es](valegome@ucm.es)]"
+date: '`r format(Sys.time(), "%d %B %Y")`'
+output: pdf_document
+site: "bookdown::bookdown_site"
+lang: es-CO
+fig_width: 4
+fig_height: 2.5
+fontsize: 12pt
+urlcolor: blue
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+# Comparación modelos
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+require(pacman)
+p_load(here, readr, tidyverse, dplyr, validate, data.table, missForest, 
+			 VIM, lattice, simputation, mice, skimr, compareDF)
+
+
+```
+
+# Importación de datos:
+
+```{r}
+
+donante_dir <- here::here("08.modelos_imputacion/output")
+documentado_dir <- here::here("01.tablas_documentadas/output")
+
+output_dir <- here::here("09.comparacion_modelos/output")
+
+imputacion_donante_etnia <- readRDS(paste0(donante_dir,"/imputacion_donante_etnia.rds")) 
+
+# Función para cargar réplicas
+cargar_replicas <- function(nombre_directorio, nombre_archivo, replicas) {
+  verdata::read_replicates(here::here(nombre_directorio), nombre_archivo, replicas)
+}
+
+# Función para resumir tablas documentadas
+resumir_tabla_documentada <- function(nombre_archivo, replicas, strata_vars, conflict_filter = TRUE, edad_minors_filter = FALSE, include_props = TRUE, forced_dis_filter = FALSE) {
+	
+  verdata::summary_observed(nombre_archivo,
+                            replicas, 
+                            strata_vars = strata_vars,
+                            conflict_filter = conflict_filter,
+                            edad_minors_filter = edad_minors_filter,
+                            include_props = include_props,
+                            forced_dis_filter = forced_dis_filter)
+}
+
+# Definir parámetros comunes
+strata_vars_comunes <- c("etnia", "yy_hecho")
+replicas <- c(1:10)
+
+# Cargar réplicas
+replicas_desaparicion <- cargar_replicas("01.tablas_documentadas/input/verdata-parquet/desaparicion", "desaparicion", replicas)
+
+replicas_homicidio <- cargar_replicas("01.tablas_documentadas/input/verdata-parquet/homicidio", "homicidio", replicas)
+
+replicas_secuestro <- cargar_replicas("01.tablas_documentadas/input/verdata-parquet/secuestro", "secuestro", replicas)
+
+replicas_reclutamiento <- cargar_replicas("01.tablas_documentadas/input/verdata-parquet/reclutamiento", "reclutamiento", replicas)
+
+# Crear tablas documentadas
+tabla_documentada_desaparicion <- resumir_tabla_documentada("desaparicion", replicas_desaparicion, strata_vars_comunes, forced_dis_filter = TRUE)
+
+tabla_documentada_homicidio <- resumir_tabla_documentada("homicidio", replicas_homicidio, strata_vars_comunes)
+
+tabla_documentada_secuestro <- resumir_tabla_documentada("secuestro", replicas_secuestro, strata_vars_comunes)
+
+tabla_documentada_reclutamiento <- resumir_tabla_documentada("reclutamiento", replicas_reclutamiento, strata_vars_comunes)
+
+```
+Inserto los resultados por donante: 
+
+```{r}
+donante_etnia_desap <- rbind(imputacion_donante_etnia[["desaparicion_1996_2000"]], 
+			imputacion_donante_etnia[["desaparicion_2001_2005"]],
+			imputacion_donante_etnia[["desaparicion_2006_2010"]],
+			imputacion_donante_etnia[["desaparicion_2011_2016"]])
+
+donante_etnia_homi <- rbind(imputacion_donante_etnia[["homicidio_1996_2000"]], 
+			imputacion_donante_etnia[["homicidio_2001_2005"]],
+			imputacion_donante_etnia[["homicidio_2006_2010"]],
+			imputacion_donante_etnia[["homicidio_2011_2016"]])
+
+donante_etnia_secue <- rbind(imputacion_donante_etnia[["secuestro_1996_2000"]], 
+			imputacion_donante_etnia[["secuestro_2001_2005"]],
+			imputacion_donante_etnia[["secuestro_2006_2010"]],
+			imputacion_donante_etnia[["secuestro_2011_2016"]])
+
+donante_etnia_reclu <- rbind(imputacion_donante_etnia[["reclutamiento_1996_2000"]], 
+			imputacion_donante_etnia[["reclutamiento_2001_2005"]],
+			imputacion_donante_etnia[["reclutamiento_2006_2010"]],
+			imputacion_donante_etnia[["reclutamiento_2011_2016"]])
+
+```
+
+Inserto los resultados de JEP-CEV-HRDAG:
+
+```{r}
+
+tabla_combinada_desaparicion <- verdata::combine_replicates("desaparicion",
+                                                tabla_documentada_desaparicion,
+                                                replicas_desaparicion, 
+                                                strata_vars = c("etnia", "yy_hecho"),
+                                                conflict_filter = TRUE,
+                                                forced_dis_filter = TRUE,
+                                                edad_minors_filter = FALSE,
+                                                include_props = TRUE)
+
+tabla_combinada_desaparicion <- tabla_combinada_desaparicion %>% 
+  select(yy_hecho, etnia, observed, obs_prop_na, obs_prop, imp_lo, imp_mean, imp_hi,
+         imp_lo_p, imp_mean_p, imp_hi_p ) %>%
+	left_join(donante_etnia_desap)
+
+tabla_combinada_homicidio <- verdata::combine_replicates("homicidio",
+                                                tabla_documentada_homicidio,
+                                                replicas_homicidio, 
+                                                strata_vars = c("etnia", "yy_hecho"),
+                                                conflict_filter = TRUE,
+                                                edad_minors_filter = FALSE,
+                                                include_props = TRUE)
+
+tabla_combinada_homicidio <- tabla_combinada_homicidio %>% 
+  select(yy_hecho, etnia, observed, obs_prop_na, obs_prop, imp_lo, imp_mean, imp_hi,
+         imp_lo_p, imp_mean_p, imp_hi_p ) %>%
+	left_join(donante_etnia_homi)
+
+tabla_combinada_secuestro <- verdata::combine_replicates("secuestro",
+                                                tabla_documentada_secuestro,
+                                                replicas_secuestro, 
+                                                strata_vars = c("etnia", "yy_hecho"),
+                                                conflict_filter = TRUE,
+                                                edad_minors_filter = FALSE,
+                                                include_props = TRUE)
+
+tabla_combinada_secuestro <- tabla_combinada_secuestro %>% 
+  select(yy_hecho, etnia, observed, obs_prop_na, obs_prop, imp_lo, imp_mean, imp_hi,
+         imp_lo_p, imp_mean_p, imp_hi_p ) %>%
+	left_join(donante_etnia_secue)
+
+tabla_combinada_reclutamiento <- verdata::combine_replicates("reclutamiento",
+                                                tabla_documentada_reclutamiento,
+                                                replicas_reclutamiento, 
+                                                strata_vars = c("etnia", "yy_hecho"),
+                                                conflict_filter = TRUE,
+                                                edad_minors_filter = FALSE,
+                                                include_props = TRUE)
+
+tabla_combinada_reclutamiento <- tabla_combinada_reclutamiento %>% 
+  select(yy_hecho, etnia, observed, obs_prop_na, obs_prop, imp_lo, imp_mean, imp_hi,
+         imp_lo_p, imp_mean_p, imp_hi_p ) %>%
+	left_join(donante_etnia_reclu)
+
+```
+
+
+# Desaparición - Etnia
+
+## Comparación de resultados mestizos
+
+```{r}
+mestizos_proyecto_desap <- tabla_combinada_desaparicion %>%
+	  filter(etnia == "MESTIZO",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+plot_desap_mestizos_year_imp <- mestizos_proyecto_desap %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
+	  filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
+	  geom_ribbon(aes(ymin = imp_lo,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+		scale_y_continuous(breaks = seq(0, max(mestizos_proyecto_desap$imp_hi,
+																				 na.rm = TRUE), by = 1500)) +
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas mestizas",
+         color = "",
+    		 title = "Desapariciones Forzadas") +
+    scale_colour_manual(values = c("Imputado JEP-CEV-HRDAG" = "#1F74B1", 
+                               "Observado" = "#434343",
+    															 "Imputado por Donante" = "red"))
+
+plot_desap_mestizos_year_imp
+
+ggsave(paste0(output_dir,"/etnia/plot_desap_mestizos_year_imp.jpg"),
+			 plot_desap_mestizos_year_imp)
+```
+## Comparación de resultados indígenas
+
+```{r}
+
+indigenas_proyecto_desap <- tabla_combinada_desaparicion %>%
+	  filter(etnia == "INDIGENA",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+
+plot_desap_indigenas_year_imp <- indigenas_proyecto_desap %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
+   filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
+   	geom_ribbon(aes(ymin = imp_lo,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+		scale_y_continuous(breaks = seq(0, max(indigenas_proyecto_desap$imp_hi,
+																				 na.rm = TRUE), by = 100)) +	
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas indígenas",
+         color = "",
+    		 title = "Desapariciones Forzadas") +
+    scale_colour_manual(values = c("Imputado JEP-CEV-HRDAG" = "#1F74B1", 
+                               "Observado" = "#434343",
+    															 "Imputado por Donante" = "red"))
+
+plot_desap_indigenas_year_imp
+
+ggsave(paste0(output_dir,"/etnia/plot_desap_indigenas_year_imp.jpg"),
+			 plot_desap_indigenas_year_imp)
+
+```
+## Comparación de resultados NARP
+
+```{r}
+
+narp_proyecto_desap <- tabla_combinada_desaparicion %>%
+	  filter(etnia == "NARP",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+
+plot_desap_narp_year_imp <- narp_proyecto_desap %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>%
+	 filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
+	  geom_ribbon(aes(ymin = imp_lo,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+		scale_y_continuous(breaks = seq(0, max(narp_proyecto_desap$imp_hi,
+																				 na.rm = TRUE), by = 150)) +
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas NARP",
+         color = "",
+    		 title = "Desapariciones Forzadas") +
+    scale_colour_manual(values = c("Imputado JEP-CEV-HRDAG" = "#1F74B1", 
+                               "Observado" = "#434343",
+    															 "Imputado por Donante" = "red"))
+
+plot_desap_narp_year_imp
+
+ggsave(paste0(output_dir,"/etnia/plot_desap_narp_year_imp.jpg"),
+			 plot_desap_narp_year_imp)
+
+```
+
+## Comparación de resultados RROM
+
+```{r}
+
+rrom_proyecto_desap <- tabla_combinada_desaparicion %>%
+	  filter(etnia == "ROM",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+
+plot_desap_rrom_year_imp <- rrom_proyecto_desap %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
+  	filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1,
+	  					linetype = "dashed") +
+	  geom_ribbon(aes(ymin = imp_lo_p,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+		scale_y_continuous(breaks = seq(0, max(rrom_proyecto_desap$imp_hi,
+																				 na.rm = TRUE), by = 5)) +
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas Rrom",
+         color = "",
+    		 title = "Desapariciones Forzadas") +
+    scale_colour_manual(values = c("Observado" = "#434343",
+    															 "Imputado JEP-CEV-HRDAG" = "#1F74B1",
+    															"Imputado por Donante" = "red"))
+
+plot_desap_rrom_year_imp
+
+ggsave(paste0(output_dir,"/etnia/plot_desap_rrom_year_imp.jpg"),
+			 plot_desap_rrom_year_imp)
+
+```
+
+# Homicidio - Etnia
+
+## Comparación de resultados mestizos
+
+```{r}
+
+mestizos_proyecto_homi <- tabla_combinada_homicidio %>%
+	  filter(etnia == "MESTIZO",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+plot_homi_mestizos_year_imp <- mestizos_proyecto_homi %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
+	  filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
+	  geom_ribbon(aes(ymin = imp_lo,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+	scale_y_continuous(breaks = seq(0, max(mestizos_proyecto_homi$imp_hi,
+																				 na.rm = TRUE), by = 3000)) +
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas mestizas",
+         color = "",
+    		 title = "Homicidios") +
+    scale_colour_manual(values = c("Imputado JEP-CEV-HRDAG" = "#1F74B1", 
+                               "Observado" = "#434343",
+    															 "Imputado por Donante" = "red"))
+
+plot_homi_mestizos_year_imp
+
+ggsave(paste0(output_dir,"/etnia/plot_homi_mestizos_year_imp.jpg"),
+			 plot_homi_mestizos_year_imp)
+```
+# Comparación de resultados indígenas
+
+```{r}
+
+indigenas_proyecto_homi <- tabla_combinada_homicidio %>%
+	  filter(etnia == "INDIGENA",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+
+plot_homi_indigenas_year_imp <- indigenas_proyecto_homi %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
+   filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
+   	geom_ribbon(aes(ymin = imp_lo,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+		scale_y_continuous(breaks = seq(0, max(indigenas_proyecto_homi$imp_hi,
+																				 na.rm = TRUE), by = 100)) +
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas indígenas",
+         color = "",
+    		 title = "Homicidios") +
+    scale_colour_manual(values = c("Imputado JEP-CEV-HRDAG" = "#1F74B1", 
+                               "Observado" = "#434343",
+    															 "Imputado por Donante" = "red"))
+
+plot_homi_indigenas_year_imp
+
+ggsave(paste0(output_dir,"/etnia/plot_homi_indigenas_year_imp.jpg"),
+			 plot_homi_indigenas_year_imp)
+
+```
+# Comparación de resultados NARP
+
+```{r}
+
+narp_proyecto_homi <- tabla_combinada_homicidio %>%
+	  filter(etnia == "NARP",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+
+plot_homi_narp_year_imp <- narp_proyecto_homi %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>%
+	 filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
+	  geom_ribbon(aes(ymin = imp_lo,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+		scale_y_continuous(breaks = seq(0, max(narp_proyecto_homi$imp_hi,
+																				 na.rm = TRUE), by = 200)) +
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas NARP",
+         color = "",
+    		 title = "Homicidios") +
+    scale_colour_manual(values = c("Imputado JEP-CEV-HRDAG" = "#1F74B1", 
+                               "Observado" = "#434343",
+    															 "Imputado por Donante" = "red"))
+
+plot_homi_narp_year_imp
+
+ggsave(paste0(output_dir,"/etnia/plot_homi_narp_year_imp.jpg"),
+			 plot_homi_narp_year_imp)
+
+```
+
+# Comparación de resultados RROM
+
+```{r}
+
+rrom_proyecto_homi <- tabla_combinada_homicidio %>%
+	  filter(etnia == "ROM",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+
+plot_homi_rrom_year_imp <- rrom_proyecto_homi %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
+  	filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1,
+	  					linetype = "dashed") +
+	  geom_ribbon(aes(ymin = imp_lo_p,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+  	scale_y_continuous(breaks = seq(0, max(rrom_proyecto_homi$imp_hi,
+																				 na.rm = TRUE), by = 5)) +
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas Rrom",
+         color = "",
+    		 title = "Homicidios") +
+    scale_colour_manual(values = c("Observado" = "#434343",
+    															 "Imputado JEP-CEV-HRDAG" = "#1F74B1",
+    															"Imputado por Donante" = "red"))
+
+plot_homi_rrom_year_imp
+
+ggsave(paste0(output_dir,"/etnia/plot_homi_rrom_year_imp.jpg"),
+			 plot_homi_rrom_year_imp)
+
+```
+# Secuestro - Etnia
+
+## Comparación de resultados mestizos
+
+```{r}
+mestizos_proyecto_secue <- tabla_combinada_secuestro %>%
+	  filter(etnia == "MESTIZO",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+plot_secue_mestizos_year_imp <- mestizos_proyecto_secue %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
+	  filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
+	  geom_ribbon(aes(ymin = imp_lo,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+		scale_y_continuous(breaks = seq(0, max(mestizos_proyecto_secue$imp_hi,
+																				 na.rm = TRUE), by = 1000)) +
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas mestizas",
+         color = "",
+    		 title = "Secuestros") +
+    scale_colour_manual(values = c("Imputado JEP-CEV-HRDAG" = "#1F74B1", 
+                               "Observado" = "#434343",
+    															 "Imputado por Donante" = "red"))
+
+plot_secue_mestizos_year_imp
+
+ggsave(paste0(output_dir,"/etnia/plot_secue_mestizos_year_imp.jpg"),
+			 plot_secue_mestizos_year_imp)
+```
+## Comparación de resultados indígenas
+
+```{r}
+
+indigenas_proyecto_secue <- tabla_combinada_secuestro %>%
+	  filter(etnia == "INDIGENA",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+
+plot_secue_indigenas_year_imp <- indigenas_proyecto_secue %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
+   filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
+   	geom_ribbon(aes(ymin = imp_lo,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+		scale_y_continuous(breaks = seq(0, max(indigenas_proyecto_secue$imp_hi,
+																				 na.rm = TRUE), by = 100)) +	
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas indígenas",
+         color = "",
+    		 title = "Secuestros") +
+    scale_colour_manual(values = c("Imputado JEP-CEV-HRDAG" = "#1F74B1", 
+                               "Observado" = "#434343",
+    															 "Imputado por Donante" = "red"))
+
+plot_secue_indigenas_year_imp
+
+ggsave(paste0(output_dir,"/etnia/plot_secue_indigenas_year_imp.jpg"),
+			 plot_secue_indigenas_year_imp)
+
+```
+## Comparación de resultados NARP
+
+```{r}
+
+narp_proyecto_secue <- tabla_combinada_secuestro %>%
+	  filter(etnia == "NARP",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+
+plot_secue_narp_year_imp <- narp_proyecto_secue %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>%
+	 filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
+	  geom_ribbon(aes(ymin = imp_lo,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+		scale_y_continuous(breaks = seq(0, max(narp_proyecto_secue$imp_hi,
+																				 na.rm = TRUE), by = 150)) +
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas NARP",
+         color = "",
+    		 title = "Secuestros") +
+    scale_colour_manual(values = c("Imputado JEP-CEV-HRDAG" = "#1F74B1", 
+                               "Observado" = "#434343",
+    															 "Imputado por Donante" = "red"))
+
+plot_secue_narp_year_imp
+
+ggsave(paste0(output_dir,"/etnia/plot_secue_narp_year_imp.jpg"),
+			 plot_secue_narp_year_imp)
+
+```
+
+## Comparación de resultados RROM
+
+```{r}
+
+rrom_proyecto_secue <- tabla_combinada_secuestro %>%
+	  filter(etnia == "ROM",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+
+plot_secue_rrom_year_imp <- rrom_proyecto_secue %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
+  	filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1,
+	  					linetype = "dashed") +
+	  geom_ribbon(aes(ymin = imp_lo_p,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+		scale_y_continuous(breaks = seq(0, max(rrom_proyecto_secue$imp_hi,
+																				 na.rm = TRUE), by = 2)) +
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas Rrom",
+         color = "",
+    		 title = "Secuestros") +
+    scale_colour_manual(values = c("Observado" = "#434343",
+    															 "Imputado JEP-CEV-HRDAG" = "#1F74B1",
+    															"Imputado por Donante" = "red"))
+
+plot_secue_rrom_year_imp
+
+ggsave(paste0(output_dir,"/etnia/plot_secue_rrom_year_imp.jpg"),
+			 plot_secue_rrom_year_imp)
+
+```
+# Reclutamiento - Etnia
+
+## Comparación de resultados mestizos
+
+```{r}
+mestizos_proyecto_reclu <- tabla_combinada_reclutamiento %>%
+	  filter(etnia == "MESTIZO",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+plot_reclu_mestizos_year_imp <- mestizos_proyecto_reclu %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
+	  filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
+	  geom_ribbon(aes(ymin = imp_lo,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+		scale_y_continuous(breaks = seq(0, max(mestizos_proyecto_reclu$imp_hi,
+																				 na.rm = TRUE), by = 200)) +
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas mestizas",
+         color = "",
+    		 title = "Reclutamientos") +
+    scale_colour_manual(values = c("Imputado JEP-CEV-HRDAG" = "#1F74B1", 
+                               "Observado" = "#434343",
+    															 "Imputado por Donante" = "red"))
+
+plot_reclu_mestizos_year_imp
+
+ggsave(paste0(output_dir,"/etnia/plot_reclu_mestizos_year_imp.jpg"),
+			 plot_reclu_mestizos_year_imp)
+```
+## Comparación de resultados indígenas
+
+```{r}
+
+indigenas_proyecto_reclu <- tabla_combinada_reclutamiento %>%
+	  filter(etnia == "INDIGENA",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+
+plot_reclu_indigenas_year_imp <- indigenas_proyecto_reclu %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
+   filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
+   	geom_ribbon(aes(ymin = imp_lo,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+		scale_y_continuous(breaks = seq(0, max(indigenas_proyecto_reclu$imp_hi,
+																				 na.rm = TRUE), by = 20)) +	
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas indígenas",
+         color = "",
+    		 title = "Reclutamientos") +
+    scale_colour_manual(values = c("Imputado JEP-CEV-HRDAG" = "#1F74B1", 
+                               "Observado" = "#434343",
+    															 "Imputado por Donante" = "red"))
+
+plot_reclu_indigenas_year_imp
+
+ggsave(paste0(output_dir,"/etnia/plot_reclu_indigenas_year_imp.jpg"),
+			 plot_reclu_indigenas_year_imp)
+
+```
+## Comparación de resultados NARP
+
+```{r}
+
+narp_proyecto_reclu <- tabla_combinada_reclutamiento %>%
+	  filter(etnia == "NARP",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+
+plot_reclu_narp_year_imp <- narp_proyecto_reclu %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>%
+	 filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
+	  geom_ribbon(aes(ymin = imp_lo,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+		scale_y_continuous(breaks = seq(0, max(narp_proyecto_reclu$imp_hi,
+																				 na.rm = TRUE), by = 20)) +
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas NARP",
+         color = "",
+    		 title = "Reclutamientos") +
+    scale_colour_manual(values = c("Imputado JEP-CEV-HRDAG" = "#1F74B1", 
+                               "Observado" = "#434343",
+    															 "Imputado por Donante" = "red"))
+
+plot_reclu_narp_year_imp
+
+ggsave(paste0(output_dir,"/etnia/plot_reclu_narp_year_imp.jpg"),
+			 plot_reclu_narp_year_imp)
+
+```
+
+## Comparación de resultados RROM
+
+```{r}
+
+rrom_proyecto_reclu <- tabla_combinada_reclutamiento %>%
+	  filter(etnia == "ROM",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+
+plot_reclu_rrom_year_imp <- rrom_proyecto_reclu %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
+  	filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1,
+	  					linetype = "dashed") +
+	  geom_ribbon(aes(ymin = imp_lo_p,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+		scale_y_continuous(breaks = seq(0, max(rrom_proyecto_reclu$imp_hi,
+																				 na.rm = TRUE), by = 1)) +
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas Rrom",
+         color = "",
+    		 title = "Reclutamientos") +
+    scale_colour_manual(values = c("Observado" = "#434343",
+    															 "Imputado JEP-CEV-HRDAG" = "#1F74B1",
+    															"Imputado por Donante" = "red"))
+
+plot_reclu_rrom_year_imp
+
+ggsave(paste0(output_dir,"/etnia/plot_reclu_rrom_year_imp.jpg"),
+			 plot_reclu_rrom_year_imp)
+
+```
+
+
