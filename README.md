@@ -32,5 +32,7 @@ La carpeta de inputs no contiene las bases de datos que se usaron del Panel Muni
 
 10. [10.validacion_modelos](https://github.com/vgomezc18/TFM/tree/main/10.validacion_modelos): En esta carpeta se validan los resultados obtenidos a través de los diferentes métodos de imputación (imputación por donante, imputación por machine learning e imputación por regresión). Se realiza una validación cruzada.
 
+
 Autora: Valentina Gómez Calderón
+
 Contacto: valegome@ucm.es - valengomez018@gmail.com
