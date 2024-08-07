@@ -1,0 +1,260 @@
+---
+title: "Contraste de métodos de imputación estadística en la documentación de víctimas del
+conflicto armado colombiano"
+author: "Valentina Gómez^[[valegome@ucm.es](valegome@ucm.es)]"
+date: '`r format(Sys.time(), "%d %B %Y")`'
+output: pdf_document
+site: "bookdown::bookdown_site"
+lang: es-CO
+fig_width: 4
+fig_height: 2.5
+fontsize: 12pt
+urlcolor: blue
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+# Imputación por Machine Learning - Sexo
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+require(pacman)
+p_load(here, tidyverse, dplyr, data.table, ranger, caret, ggplot2, pROC)
+
+```
+
+Importación de datos:
+
+```{r}
+input_dir <- here::here("06.union/output")
+output_dir <- here::here("08.modelos_imputacion/output")
+
+violencias_unidas_aux <- readRDS(paste0(input_dir,"/violencias_unidas_aux.rds")) %>%
+	as.data.table()
+```
+
+Imputación de la variable sexo usando un modelo de random forest:
+
+
+```{r}
+table(violencias_unidas_aux$sexo, violencias_unidas_aux$etnia, useNA = "always")
+# Observese que existen muchos registros con NA tanto en sexo como en etnia. 
+# Esto aconseja quitar las variables a imputar del conjunto para construir los modelos
+# El problema es que los conjuntos de train y test recojan todos los valores posibles de todas las variables que
+# entran en el conjunto a imputar
+
+## Preparar el data set para la imputación. Se definen una lista de variables predictoras.
+regressors <- c("dept_code_hecho", "muni_code_hecho", "areaoficialkm2_mpio", "discapital_mpio", "frontera_mpio", "macroregion",
+                "yy_hecho",
+                "violencia",
+                "pobl_rur_mpio", "pobl_urb_mpio", "pobl_tot_mpio", "indrural_mpio",  "predo_rural_mpio",
+                "y_transf_depto", "g_func_general_depto",  
+                "H_coca_depto",
+                "asistesc_depto", "per_alfa_depto", "alumn_total_depto", 
+                "nac_hombres_depto", "nac_mujeres_depto","tot_nacimientos_depto", "tot_defunciones_depto")
+
+#Datos completos:
+data_sexo.dt <- violencias_unidas_aux[   # datos para contruir el modelo. Los NAs de las variables a imputar las asignamos a una nueva categoria.  Registros donde sexo no es NA y se preparan las variables con valores faltantes asignándoles una nueva categoría ('*').
+  !is.na(sexo)][
+  , sexo := factor(sexo)][  
+  is.na(etnia), etnia := '*'][
+  is.na(edad_categoria), edad_categoria := '*'][
+  is.na(edad_jep), edad_jep := '*'][
+  is.na(p_str), p_str := '*'][  
+  , c('sexo', regressors), with = FALSE]
+
+ #Datos a imputar:
+data_sexo_impute.dt <- violencias_unidas_aux[   # contiene los registros donde sexo es NA y necesita ser imputado.
+  is.na(sexo)][ # Unidades a imputar 
+  , c('sexo', regressors), with = FALSE] 
+
+```
+
+Configuración de Validación Cruzada y Búsqueda de Hiperparámetros:
+
+```{r}
+## Se define una cuadrícula de hiperparámetros para el modelo Random Forest.
+grid_hyperp.dt <- as.data.table(expand.grid(
+  mtry = c(4, length(regressors) - 3),
+  min.node.size = c(50, 500),
+  num.trees = c(100, 500)))
+
+# Highly unbalanced dataset. We undersample on sexo == 'HOMBRE'
+table(data_sexo.dt$sexo)
+n_mujeres <- data_sexo.dt[sexo == 'MUJER', .N]
+n_hombres <- data_sexo.dt[sexo == 'HOMBRE', .N]
+
+# Se realiza un submuestreo para balancear el dataset en términos de sexo, ya que el dataset original está desbalanceado (más hombres que mujeres).
+data_sexo_undersampl.dt <- rbindlist(list(
+  data_sexo.dt[sexo == 'HOMBRE'][
+               sample(c(TRUE, FALSE), n_hombres,
+               			 prob = c(n_mujeres / n_hombres, 1 - n_mujeres / n_hombres),
+               			 replace = TRUE)],
+  data_sexo.dt[sexo == 'MUJER']))
+```
+
+Entrenamiento y validación del modelo con K-Fold Cross-Validation:
+
+```{r}
+#Construimos los 5 folds
+n_rf    <- nrow(data_sexo_undersampl.dt)
+n_folds <- 5
+set.seed(543) # For k-fold reproducibility
+data_sexo_undersampl.dt[, fold_idx := sample(1:n_folds, n_rf, replace = TRUE)]
+
+# Train-test para cada fold y cada celda de hiperparametros
+roc_sexo_train.lst <- vector(mode = 'list', length = nrow(grid_hyperp.dt))
+roc_sexo_test.lst  <- vector(mode = 'list', length = nrow(grid_hyperp.dt))
+prob_sexo_test.lst  <- vector(mode = 'list', length = nrow(grid_hyperp.dt))
+n_cells <- nrow(grid_hyperp.dt)
+
+for (grid_id in 1:n_cells){
+  
+  mtry          <- grid_hyperp.dt[grid_id][['mtry']]
+  min.node.size <- grid_hyperp.dt[grid_id][['min.node.size']]
+  num.trees     <- grid_hyperp.dt[grid_id][['num.trees']]
+  
+  cat(paste0('mtry= ', mtry, '; min.node.size= ', min.node.size, '; num.trees= ', num.trees, '\n'))
+  
+  roc_sexo_train.lst[[grid_id]] <- vector('list', n_folds)
+  
+  for (fold in 1:n_folds){
+    
+    
+    data_train.dt <- data_sexo_undersampl.dt[fold_idx != fold]
+    data_test.dt  <- data_sexo_undersampl.dt[fold_idx == fold]
+    model_sexo <- ranger(
+      sexo ~ ., 
+      data = data_train.dt,
+      splitrule = "gini",
+      mtry = mtry,
+      min.node.size = min.node.size,
+      num.trees = num.trees,
+      probability = TRUE)
+    pred_sexo_train  <- predict(model_sexo, data = data_train.dt)
+    roc_sexo_train.lst[[grid_id]][[fold]] <- roc(data_train.dt$sexo, pred_sexo_train$predictions[, 'HOMBRE'], levels = c('HOMBRE', 'MUJER'))
+    
+    pred_sexo_test  <- predict(model_sexo, data = data_test.dt)
+    roc_sexo_test.lst[[grid_id]][[fold]] <- roc(data_test.dt$sexo, pred_sexo_test$predictions[, 'HOMBRE'], levels = c('HOMBRE', 'MUJER')) 
+    prob_sexo_test.lst[[grid_id]][[fold]] <- pred_sexo_test$predictions
+    cat(paste0('   fold= ', fold, '; auc_pred= ', auc(roc_sexo_test.lst[[grid_id]][[fold]]), '\n'))
+  }    
+  names(roc_sexo_train.lst[[grid_id]]) <- paste0('fold= ', 1:n_folds)
+  names(roc_sexo_test.lst[[grid_id]])  <- paste0('fold= ', 1:n_folds)
+
+}
+names(roc_sexo_train.lst) <- paste0('hyper_cell= ', 1:n_cells)
+names(roc_sexo_test.lst) <- paste0('hyper_cell= ', 1:n_cells)
+
+saveRDS(roc_sexo_train.lst, (paste0(output_dir,"/roc_sexo_train.lst.rds")))
+saveRDS(roc_sexo_test.lst, (paste0(output_dir,"/roc_sexo_test.lst.rds")))
+
+```
+
+Selección de los mejores hiperparámetros:
+
+```{r}
+#Calculamos el AUC en cada fold y cada celda
+auc_sexo_train.lst <- lapply(roc_sexo_train.lst, function(lst){sapply(lst, function(roc){auc(roc)})})
+auc_sexo_train.lst
+
+auc_sexo_test.lst  <- lapply(roc_sexo_test.lst,  function(lst){sapply(lst, function(roc){auc(roc)})})
+auc_sexo_test.lst
+
+# Tomamos la media de las AUC en cada celda
+auc_sexo_train_main <- sapply(auc_sexo_train.lst, mean)
+auc_sexo_train_main
+
+auc_sexo_test_main <- sapply(auc_sexo_test.lst, mean)
+auc_sexo_test_main
+
+auc.dt <- data.table(
+  hyper_cell = seq_along(auc_sexo_test_main), 
+  train = round(auc_sexo_train_main, 3), 
+  test  = round(auc_sexo_test_main, 3))
+auc.dt <- auc.dt[
+  grid_hyperp.dt[, hyper_cell := 1:.N], on = 'hyper_cell']
+auc.dt[which.max(auc.dt$test)]
+# (el modelo optimo parece darse cuando mtry es bajo, min.node-size es bajo y num.trees es alto)
+# (el valor de auc no es muy bueno; quiza haya que probar un boosting)
+# (el undersampling no parece mejorar el modelo)
+# (la cantidad de overfitting no parece reducirse mucho con el undersampling)
+
+```
+
+Entrenamiento del modelo final e imputación de valores faltantes:
+
+```{r}
+
+# Predecimos con unos hiperparametros en la direccion de los optimos encontrados (idealmente deberian estar en los anteriores)
+model_sexo_impute <- ranger(
+  sexo ~ ., 
+  data = data_sexo.dt,
+  mtry = 4,
+  min.node.size = 15,
+  min.bucket = 10, 
+  num.trees = 1000,
+  verbose = TRUE)
+
+# Imputamos sexo con la prediccion del modelo
+pred_sexo_impute    <- predict(model_sexo_impute, data = data_sexo_impute.dt)
+data_sexo_imputed.dt <- copy(violencias_unidas_aux)[
+  , sexo_imp := ifelse(is.na(sexo), TRUE, FALSE)][
+  is.na(sexo), sexo := pred_sexo_impute$predictions]
+  
+saveRDS(data_sexo_imputed.dt, (paste0(output_dir,"/data_sexo_imputed.dt.rds")))
+
+```
+
+Evaluación de la imputación: 
+
+```{r}
+# Calculamos ratios de hombres y mujeres y visualizamos comparando antes y despues de comparar
+ratio_sexo_total.dt <- data_sexo_imputed.dt[
+  , .(ratio_mujeres = sum(sexo == 'MUJER') / .N, ratio_hombres = sum(sexo == 'HOMBRE') / .N), by = c("muni_code_hecho", "yy_hecho", "violencia")][
+  , dataset := 'imputado']
+ratio_sexo_noNA.dt <- data_sexo_imputed.dt[
+  sexo_imp == FALSE, .(ratio_mujeres = sum(sexo == 'MUJER') / .N, ratio_hombres = sum(sexo == 'HOMBRE') / .N), by = c("muni_code_hecho", "yy_hecho", "violencia")][
+  , dataset := 'original']
+ratio_sexo.dt <- rbindlist(list(ratio_sexo_total.dt, ratio_sexo_noNA.dt))
+
+plt_sexo_ml <- ggplot(ratio_sexo.dt, aes(x = dataset, y = ratio_hombres, fill = dataset)) +
+  geom_boxplot() +
+  facet_grid(violencia ~ yy_hecho) +
+  labs(x = '', y = 'Ratio de hombres\n') +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+## La imputacion no parece perturbar los ratios con estos niveles de desagregacion, salvo algun anho con algun tipo de violencia
+
+
+ggsave(paste0(output_dir,"/imputacion_ml_sexo.jpg"),
+			 plt_sexo_ml, width = 15, height = 10)
+
+```
+
+
+Agrupamos los resultados para la comparación con los demás métodos: 
+
+```{r}
+imputacion_ml_sexo <- data_sexo_imputed.dt %>%
+	filter(yy_hecho >= 1996) %>%
+	group_by(sexo, yy_hecho, violencia) %>%
+  summarise(imp_ml = n()) %>%
+  arrange(yy_hecho)
+
+saveRDS(imputacion_ml_sexo, (paste0(output_dir,"/imputacion_ml_sexo.rds")))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+

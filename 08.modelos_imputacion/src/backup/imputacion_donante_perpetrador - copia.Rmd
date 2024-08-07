@@ -1,0 +1,919 @@
+---
+title: "Contraste de métodos de imputación estadística en la documentación de víctimas del
+conflicto armado colombiano"
+author: "Valentina Gómez^[[valegome@ucm.es](valegome@ucm.es)]"
+date: '`r format(Sys.time(), "%d %B %Y")`'
+output: pdf_document
+site: "bookdown::bookdown_site"
+lang: es-CO
+fig_width: 4
+fig_height: 2.5
+fontsize: 12pt
+urlcolor: blue
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+# Imputación por donante KNN
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+require(pacman)
+p_load(here, readr, tidyverse, dplyr, validate, data.table, missForest, 
+			 VIM, lattice, simputation, mice, skimr, compareDF)
+
+```
+
+Importación de datos:
+
+```{r}
+input_dir <- here::here("06.union/output")
+output_dir <- here::here("07.modelos_imputacion/output")
+
+violencias_unidas_aux <- readRDS(paste0(input_dir,"/violencias_unidas_aux.rds")) %>%
+	as.data.table()
+
+```
+
+
+
+### 1. Imputación por donante KNN
+
+
+## 1.1 Desaparición - Etnia
+
+
+<!-- # 1993-1995 -->
+
+<!-- ```{r} -->
+<!-- desaparicion_93_95 <- violencias_unidas_aux %>% -->
+<!-- 	filter(violencia == "desaparicion", -->
+<!-- 				 yy_hecho >= "1993" & yy_hecho <= "1995")%>% -->
+<!-- 	select(match_group_id, yy_hecho, muni_code_hecho, dept_code_hecho,  -->
+<!-- 				 discapital, predo_rural, asistesc_modif, per_alfa_modif, etnia) -->
+
+
+<!-- #Imputación Donante: Vecino más próximo -->
+<!-- desaparicion_imp93_95 <- desaparicion_93_95  |> -->
+<!--   impute_knn(etnia  ~ yy_hecho+muni_code_hecho+dept_code_hecho+discapital+predo_rural+asistesc_modif+per_alfa_modif, -->
+<!--   					 backend = 'VIM') |> -->
+<!--   impute_knn(etnia  ~ yy_hecho+muni_code_hecho+dept_code_hecho+discapital+predo_rural, -->
+<!--   					 backend = 'VIM') |> -->
+<!--   impute_knn(etnia  ~ yy_hecho+dept_code_hecho+discapital, -->
+<!--   					 backend = 'VIM') |> -->
+<!--   impute_knn(etnia  ~ yy_hecho+dept_code_hecho, -->
+<!--   					 backend = 'VIM') -->
+
+<!-- imputed_flags <- as.data.frame(is.na(desaparicion_93_95) & !is.na(desaparicion_imp93_95)) -->
+
+<!-- desaparicion_imp93_95$etnia_imputed <- imputed_flags$etnia -->
+
+<!-- colSums(is.na(desaparicion_93_95)) -->
+<!-- colSums(is.na(desaparicion_imp93_95)) -->
+
+<!-- result_desap_imp93_95 <- desaparicion_imp93_95 %>% -->
+<!-- 	group_by(etnia, yy_hecho) %>% -->
+<!-- 	summarise(imp_donante=n())%>% -->
+<!-- 	arrange(yy_hecho) -->
+
+<!-- ``` -->
+# 1996-2000
+
+```{r}
+desaparicion_96_00 <- violencias_unidas_aux %>%
+	filter(violencia == "desaparicion",
+				 yy_hecho >= "1996" & yy_hecho <= "2000")%>%
+	select(match_group_id, yy_hecho, muni_code_hecho, dept_code_hecho, 
+				 discapital, predo_rural, areaoficialkm2,
+				 asistesc_modif, per_alfa_modif, alumn_total,
+				 y_transf, g_func_general, etnia)
+
+colSums(is.na(desaparicion_96_00))
+
+#Imputación Donante: Vecino más próximo
+desaparicion_imp96_00 <- desaparicion_96_00  |>
+  impute_knn(etnia  ~ yy_hecho+muni_code_hecho+dept_code_hecho+
+  					 	discapital+predo_rural+areaoficialkm2+
+  					 	asistesc_modif+per_alfa_modif+alumn_total+
+  					 	y_transf+g_func_general,
+  					 backend = 'VIM') 
+
+colSums(is.na(desaparicion_imp96_00))
+
+imputed_flags <- as.data.frame(is.na(desaparicion_96_00) & !is.na(desaparicion_imp96_00))
+
+desaparicion_imp96_00$etnia_imputed <- imputed_flags$etnia
+
+result_desap_imp96_00 <- desaparicion_imp96_00 %>%
+	group_by(etnia, yy_hecho) %>%
+	summarise(imp_donante=n())%>%
+	arrange(yy_hecho)
+
+```
+# 2001-2005
+
+```{r}
+desaparicion_01_05 <- violencias_unidas_aux %>%
+	filter(violencia == "desaparicion",
+				 yy_hecho >= "2001" & yy_hecho <= "2005")%>%
+	select(match_group_id, yy_hecho, muni_code_hecho, dept_code_hecho, 
+				 discapital, predo_rural, areaoficialkm2,
+				 asistesc_modif, per_alfa_modif, alumn_total,
+				 y_transf, g_func_general, etnia)
+
+colSums(is.na(desaparicion_01_05))
+
+#Imputación Donante: Vecino más próximo
+desaparicion_imp01_05 <- desaparicion_01_05  |>
+  impute_knn(etnia  ~ yy_hecho+muni_code_hecho+dept_code_hecho+
+  					 	discapital+predo_rural+areaoficialkm2+
+  					 	asistesc_modif+per_alfa_modif+alumn_total+
+  					 	y_transf+g_func_general,
+  					 backend = 'VIM') 
+
+colSums(is.na(desaparicion_imp01_05))
+
+imputed_flags <- as.data.frame(is.na(desaparicion_01_05) & !is.na(desaparicion_imp01_05))
+
+desaparicion_imp01_05$etnia_imputed <- imputed_flags$etnia
+
+result_desap_imp01_05 <- desaparicion_imp01_05 %>%
+	group_by(etnia, yy_hecho) %>%
+	summarise(imp_donante=n())%>%
+	arrange(yy_hecho)
+
+```
+
+# 2006-2010
+
+```{r}
+desaparicion_06_10 <- violencias_unidas_aux %>%
+	filter(violencia == "desaparicion",
+				 yy_hecho >= "2006" & yy_hecho <= "2010")%>%
+	select(match_group_id, yy_hecho, muni_code_hecho, dept_code_hecho, 
+				 discapital, predo_rural, areaoficialkm2,
+				 asistesc_modif, per_alfa_modif, alumn_total,
+				 y_transf, g_func_general, etnia)
+
+colSums(is.na(desaparicion_06_10))
+
+#Imputación Donante: Vecino más próximo
+desaparicion_imp06_10 <- desaparicion_06_10  |>
+  impute_knn(etnia  ~ yy_hecho+muni_code_hecho+dept_code_hecho+
+  					 	discapital+predo_rural+areaoficialkm2+
+  					 	asistesc_modif+per_alfa_modif+alumn_total+
+  					 	y_transf+g_func_general,
+  					 backend = 'VIM') 
+
+colSums(is.na(desaparicion_imp06_10))
+
+imputed_flags <- as.data.frame(is.na(desaparicion_06_10) & !is.na(desaparicion_imp06_10))
+
+desaparicion_imp06_10$etnia_imputed <- imputed_flags$etnia
+
+result_desap_imp06_10 <- desaparicion_imp06_10 %>%
+	group_by(etnia, yy_hecho) %>%
+	summarise(imp_donante=n())%>%
+	arrange(yy_hecho)
+
+```
+
+# 2011-2016
+
+```{r}
+desaparicion_11_16 <- violencias_unidas_aux %>%
+	filter(violencia == "desaparicion",
+				 yy_hecho >= "2011" & yy_hecho <= "2016")%>%
+	select(match_group_id, yy_hecho, muni_code_hecho, dept_code_hecho, 
+				 discapital, predo_rural, areaoficialkm2,
+				 asistesc_modif, per_alfa_modif, alumn_total,
+				 y_transf, g_func_general, etnia)
+
+colSums(is.na(desaparicion_11_16))
+
+#Imputación Donante: Vecino más próximo
+desaparicion_imp11_16 <- desaparicion_11_16  |>
+  impute_knn(etnia  ~ yy_hecho+muni_code_hecho+dept_code_hecho+
+  					 	discapital+predo_rural+areaoficialkm2+
+  					 	asistesc_modif+per_alfa_modif+alumn_total+
+  					 	y_transf+g_func_general,
+  					 backend = 'VIM') 
+
+colSums(is.na(desaparicion_imp11_16))
+
+imputed_flags <- as.data.frame(is.na(desaparicion_11_16) & !is.na(desaparicion_imp11_16))
+
+desaparicion_imp11_16$etnia_imputed <- imputed_flags$etnia
+
+result_desap_imp11_16 <- desaparicion_imp11_16 %>%
+	group_by(etnia, yy_hecho) %>%
+	summarise(imp_donante=n())%>%
+	arrange(yy_hecho)
+
+```
+
+Juntar las imputaciones por donante: (En estos moments estoy dejando por fuera
+la del 93 al 95)
+
+```{r}
+desaparicion_imp <- bind_rows(#desaparicion_imp93_95, 
+	                                desaparicion_imp96_00,
+																	desaparicion_imp01_05,desaparicion_imp06_10,
+																	desaparicion_imp11_16)
+colSums(is.na(desaparicion_imp))
+
+result_desap_donante <- bind_rows(#result_desap_imp93_95, 
+																	result_desap_imp96_00,
+																	result_desap_imp01_05,result_desap_imp06_10,
+																	result_desap_imp11_16)
+
+colSums(is.na(result_desap_donante))
+
+saveRDS(desaparicion_imp, "./output/etnia_imp_desaparicion.rds")
+saveRDS(result_desap_donante, "./output/result_etnia_donante_desaparicion.rds")
+
+```
+
+Inserto los resultados de JEP-CEV-HRDAG:
+
+```{r}
+replicas_desaparicion <- verdata::read_replicates(here::here("verdata-parquet/desaparicion"),
+                                           "desaparicion", c(1:10))
+
+tabla_documentada_desaparicion <- verdata::summary_observed("desaparicion",
+                                               replicas_desaparicion, 
+                                               strata_vars = c("etnia","yy_hecho"),
+                                               conflict_filter = TRUE,
+																							 forced_dis_filter = TRUE,
+                                               edad_minors_filter = FALSE,
+                                               include_props = TRUE)
+
+
+tabla_combinada_desaparicion <- verdata::combine_replicates("desaparicion",
+                                                tabla_documentada_desaparicion,
+                                                replicas_desaparicion, 
+                                                strata_vars = c("etnia", "yy_hecho"),
+                                                conflict_filter = TRUE,
+                                                forced_dis_filter = TRUE,
+                                                edad_minors_filter = FALSE,
+                                                include_props = TRUE)
+
+
+tabla_combinada_desaparicion <- tabla_combinada_desaparicion %>% 
+  select(yy_hecho, etnia, observed, obs_prop_na, obs_prop, imp_lo, imp_mean, imp_hi,
+         imp_lo_p, imp_mean_p, imp_hi_p ) %>%
+	left_join(result_desap_donante)
+
+#paged_table(tabla_combinada_desaparicion, options = list(rows.print = 10, cols.print = 5))
+
+rm(replicas_desaparicion)
+```
+
+
+# Comparación de resultados mestizos
+
+```{r}
+
+mestizos_proyecto <- tabla_combinada_desaparicion %>%
+	  filter(etnia == "MESTIZO",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+plot_desap_mestizos_year_imp <- mestizos_proyecto %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
+	  filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
+	  geom_ribbon(aes(ymin = imp_lo,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas mestizas",
+         color = "") +
+    scale_colour_manual(values = c("Imputado JEP-CEV-HRDAG" = "#1F74B1", 
+                               "Observado" = "#434343",
+    															 "Imputado por Donante" = "red"))
+
+plot_desap_mestizos_year_imp
+
+ggsave("./output/plot_desap_mestizos_year_imp.jpg",
+			 plot_desap_mestizos_year_imp)
+```
+# Comparación de resultados indígenas
+
+```{r}
+
+indigenas_proyecto <- tabla_combinada_desaparicion %>%
+	  filter(etnia == "INDIGENA",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+
+plot_desap_indigenas_year_imp <- indigenas_proyecto %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
+   filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
+   	geom_ribbon(aes(ymin = imp_lo,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas indígenas",
+         color = "") +
+    scale_colour_manual(values = c("Imputado JEP-CEV-HRDAG" = "#1F74B1", 
+                               "Observado" = "#434343",
+    															 "Imputado por Donante" = "red"))
+
+plot_desap_indigenas_year_imp
+
+ggsave("./output/plot_desap_indigenas_year_imp.jpg",
+			 plot_desap_indigenas_year_imp)
+```
+# Comparación de resultados NARP
+
+```{r}
+
+narp_proyecto <- tabla_combinada_desaparicion %>%
+	  filter(etnia == "NARP",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+
+plot_desap_narp_year_imp <- narp_proyecto %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>%
+	 filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
+	  geom_ribbon(aes(ymin = imp_lo,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas NARP",
+         color = "") +
+    scale_colour_manual(values = c("Imputado JEP-CEV-HRDAG" = "#1F74B1", 
+                               "Observado" = "#434343",
+    															 "Imputado por Donante" = "red"))
+
+plot_desap_narp_year_imp
+
+ggsave("./output/plot_desap_narp_year_imp.jpg",
+			 plot_desap_narp_year_imp)
+```
+
+
+# Comparación de resultados RROM
+
+```{r}
+
+rrom_proyecto <- tabla_combinada_desaparicion %>%
+	  filter(etnia == "ROM",
+	  			 yy_hecho >= 1993) %>%
+    mutate(observed = as.numeric(observed)) %>% 
+    arrange((yy_hecho))
+
+
+plot_desap_rrom_year_imp <- rrom_proyecto %>%
+    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
+  	filter(yy_hecho >= 1996) %>%
+    ggplot(aes(x = yy_hecho)) +
+    geom_line(aes(y = observed, color = "Observado"),  size = 1) +
+    geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
+	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1,
+	  					linetype = "dashed") +
+	  geom_ribbon(aes(ymin = imp_lo_p,
+                    ymax = imp_hi),
+	  						fill = "#1F74B1",
+                alpha = 0.2) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(size = 11, angle = 90),
+        axis.title.y = element_text(size = 11),
+        axis.ticks.x = element_line(size = 0.1)) +
+    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
+    theme(legend.position = "bottom") +
+    labs(x = "Año",
+         y = "Número de víctimas Rrom",
+         color = "") +
+    scale_colour_manual(values = c("Observado" = "#434343",
+    															 "Imputado JEP-CEV-HRDAG" = "#1F74B1",
+    															"Imputado por Donante" = "red"))
+
+plot_desap_rrom_year_imp
+
+ggsave("./output/plot_desap_rrom_year_imp.jpg",
+			 plot_desap_rrom_year_imp)
+```
+
+## 1.2 Desaparición - Perpetrador
+
+
+## 2. Perpetrador 
+# 2.1 Desaparición
+
+# 1996-2000
+
+```{r}
+perp_96_00 <- violencias_unidas_aux %>%
+	filter(violencia == "desaparicion",
+				 yy_hecho >= "1996" & yy_hecho <= "2000")%>%
+	select(match_group_id, yy_hecho, muni_code_hecho, dept_code_hecho, 
+				 discapital, predo_rural, areaoficialkm2,
+				 asistesc_modif, per_alfa_modif, alumn_total,
+				 y_transf, g_func_general, 
+				 h_coca_inform, frontera, p_str)
+
+colSums(is.na(perp_96_00))
+
+#Imputación Donante: Vecino más próximo
+perp_imp96_00 <- perp_96_00  |>
+  impute_knn(p_str  ~ yy_hecho+muni_code_hecho+dept_code_hecho+
+  					 	discapital+predo_rural+areaoficialkm2+
+  					 	asistesc_modif+per_alfa_modif+alumn_total+
+  					 	y_transf+g_func_general+
+  					 	h_coca_inform+frontera,
+  					 backend = 'VIM') 
+
+colSums(is.na(perp_imp96_00))
+
+imputed_flags <- as.data.frame(is.na(perp_96_00) & !is.na(perp_imp96_00))
+
+perp_imp96_00$p_str_imputed <- imputed_flags$p_str
+
+result_perp_imp96_00 <- perp_imp96_00 %>%
+	group_by(p_str, yy_hecho) %>%
+	summarise(imp_donante=n())%>%
+	arrange(yy_hecho)
+
+```
+
+# 2001-2005
+
+```{r}
+perp_01_05 <- violencias_unidas_aux %>%
+	filter(violencia == "desaparicion",
+				 yy_hecho >= "2001" & yy_hecho <= "2005")%>%
+	select(match_group_id, yy_hecho, muni_code_hecho, dept_code_hecho, 
+				 discapital, predo_rural, areaoficialkm2,
+				 asistesc_modif, per_alfa_modif, alumn_total,
+				 y_transf, g_func_general, 
+				 h_coca_inform, frontera, p_str)
+
+colSums(is.na(perp_01_05))
+
+#Imputación Donante: Vecino más próximo
+perp_imp01_05 <- perp_01_05  |>
+  impute_knn(p_str  ~ yy_hecho+muni_code_hecho+dept_code_hecho+
+  					 	discapital+predo_rural+areaoficialkm2+
+  					 	asistesc_modif+per_alfa_modif+alumn_total+
+  					 	y_transf+g_func_general+
+  					 	h_coca_inform+frontera,
+  					 backend = 'VIM') 
+
+colSums(is.na(perp_imp01_05))
+
+imputed_flags <- as.data.frame(is.na(perp_01_05) & !is.na(perp_imp01_05))
+
+perp_imp01_05$p_str_imputed <- imputed_flags$p_str
+
+result_perp_imp01_05 <- perp_imp01_05 %>%
+	group_by(p_str, yy_hecho) %>%
+	summarise(imp_donante=n())%>%
+	arrange(yy_hecho)
+
+```
+
+# 2006-2010
+
+```{r}
+perp_06_10 <- violencias_unidas_aux %>%
+	filter(violencia == "desaparicion",
+				 yy_hecho >= "2006" & yy_hecho <= "2010")%>%
+	select(match_group_id, yy_hecho, muni_code_hecho, dept_code_hecho, 
+				 discapital, predo_rural, areaoficialkm2,
+				 asistesc_modif, per_alfa_modif, alumn_total,
+				 y_transf, g_func_general, 
+				 h_coca_inform, frontera, p_str)
+
+colSums(is.na(perp_06_10))
+
+#Imputación Donante: Vecino más próximo
+perp_imp06_10 <- perp_06_10  |>
+  impute_knn(p_str  ~ yy_hecho+muni_code_hecho+dept_code_hecho+
+  					 	discapital+predo_rural+areaoficialkm2+
+  					 	asistesc_modif+per_alfa_modif+alumn_total+
+  					 	y_transf+g_func_general+
+  					 	h_coca_inform+frontera,
+  					 backend = 'VIM') 
+
+colSums(is.na(perp_imp06_10))
+
+imputed_flags <- as.data.frame(is.na(perp_06_10) & !is.na(perp_imp06_10))
+
+perp_imp06_10$p_str_imputed <- imputed_flags$p_str
+
+result_perp_imp06_10 <- perp_imp06_10 %>%
+	group_by(p_str, yy_hecho) %>%
+	summarise(imp_donante=n())%>%
+	arrange(yy_hecho)
+
+```
+
+# 2011-2016
+
+```{r}
+perp_11_16 <- violencias_unidas_aux %>%
+	filter(violencia == "desaparicion",
+				 yy_hecho >= "2011" & yy_hecho <= "2016")%>%
+	select(match_group_id, yy_hecho, muni_code_hecho, dept_code_hecho, 
+				 discapital, predo_rural, areaoficialkm2,
+				 asistesc_modif, per_alfa_modif, alumn_total,
+				 y_transf, g_func_general, 
+				 h_coca_inform, frontera, p_str)
+
+colSums(is.na(perp_11_16))
+
+#Imputación Donante: Vecino más próximo
+perp_imp11_16 <- perp_11_16  |>
+  impute_knn(p_str  ~ yy_hecho+muni_code_hecho+dept_code_hecho+
+  					 	discapital+predo_rural+areaoficialkm2+
+  					 	asistesc_modif+per_alfa_modif+alumn_total+
+  					 	y_transf+g_func_general+
+  					 	h_coca_inform+frontera,
+  					 backend = 'VIM') 
+
+colSums(is.na(perp_imp11_16))
+
+imputed_flags <- as.data.frame(is.na(perp_11_16) & !is.na(perp_imp11_16))
+
+perp_imp11_16$p_str_imputed <- imputed_flags$p_str
+
+result_perp_imp11_16 <- perp_imp11_16 %>%
+	group_by(p_str, yy_hecho) %>%
+	summarise(imp_donante=n())%>%
+	arrange(yy_hecho)
+
+```
+
+Juntar las imputaciones por donante: 
+
+```{r}
+perp_imp <- bind_rows(#perp_imp93_95, 
+	                                perp_imp96_00,
+																	perp_imp01_05,perp_imp06_10,
+																	perp_imp11_16)
+colSums(is.na(perp_imp))
+
+result_perp_donante <- bind_rows(#result_perp_imp93_95, 
+																	result_perp_imp96_00,
+																	result_perp_imp01_05,result_perp_imp06_10,
+																	result_perp_imp11_16) %>%
+	ungroup()%>%
+	group_by(p_str)%>%
+	summarize(imp_donante=sum(imp_donante))
+
+colSums(is.na(result_perp_donante))
+
+saveRDS(perp_imp, "./output/perp_imp_desaparicion.rds")
+saveRDS(result_perp_donante, "./output/result_perp_donante_desaparicion.rds")
+
+```
+Inserto los resultados de JEP-CEV-HRDAG:
+
+```{r}
+replicas_desaparicion <- verdata::read_replicates(here::here("verdata-parquet/desaparicion"),
+                                           "desaparicion", c(1:10))
+
+tabla_documentada_perp <- verdata::summary_observed("desaparicion",
+                                               replicas_desaparicion, 
+                                               strata_vars = "p_str",
+                                               conflict_filter = TRUE,
+                                               forced_dis_filter = TRUE,
+                                               edad_minors_filter = FALSE,
+                                               include_props = TRUE)
+
+tabla_combinada_perp <- verdata::combine_replicates("desaparicion",
+                                                tabla_documentada_perp,
+                                                replicas_desaparicion, 
+                                                strata_vars = "p_str",
+                                                conflict_filter = TRUE,
+                                                forced_dis_filter = TRUE,
+                                                edad_minors_filter = FALSE,
+                                                include_props = TRUE)
+
+tabla_combinada_perp <- tabla_combinada_perp %>% 
+  select(p_str, observed, obs_prop_na, obs_prop, imp_lo, imp_mean, imp_hi,
+         imp_lo_p, imp_mean_p, imp_hi_p )%>%
+	left_join(result_perp_donante)
+
+#paged_table(tabla_combinada_desaparicion, options = list(rows.print = 10, cols.print = 5))
+
+rm(replicas_desaparicion)
+```
+
+
+#Comparación de resultados perpetrador
+
+```{r}
+
+plot_desap_perp_imp <- ggplot(tabla_combinada_perp,
+                aes(x = reorder(p_str, -observed), y = 0)) +
+  geom_crossbar(aes(ymin = imp_lo, ymax = imp_hi, fill = "Rango de imputación JEP-CEV-HRDAG"),
+                color = "#1F74B1") +
+  geom_col(aes(y = observed, fill = "Observado"), color = "#2F2F2F") +
+  geom_point(aes(y = imp_mean), pch = 21, color = '#63aee3', fill = "#1F74B1",
+             size = 1, stroke = 1.1) +
+	geom_point(aes(y = imp_donante, fill = "Imputado por donante"), pch = 21, 
+						 color = "red",
+             size = 1, stroke = 1.1, show.legend = FALSE) +
+  scale_y_continuous(labels = function(n){format(n, scientific = FALSE)}) +
+  theme_minimal() +
+  theme(legend.title = element_text(size = 6, face = "bold"),
+        legend.text = element_text(size = 9, face = "bold"),
+        legend.position = c(0.7, 0.7)) +
+  theme(axis.text.x = element_text(angle = 50, hjust = 1, face = "bold")) +
+  theme(legend.position = "top") +
+  labs(x = "Perpetradores",
+       y = "Número de víctimas",
+       fill = "") +
+  scale_fill_manual(values = c("Observado" = "#2F2F2F",
+                               "Rango de imputación JEP-CEV-HRDAG" = "#1F74B1",
+  														 "Imputado por donante" = "red"))
+
+plot_desap_perp_imp
+
+
+ggsave("./output/plot_desap_perp_imp.jpg",
+			 plot_desap_perp_imp)
+```
+
+
+# 2.2 Homicidio
+
+# 1996-2000
+
+```{r}
+perp_96_00 <- violencias_unidas_aux %>%
+	filter(violencia == "homicidio",
+				 yy_hecho >= "1996" & yy_hecho <= "2000")%>%
+	select(match_group_id, yy_hecho, muni_code_hecho, dept_code_hecho, 
+				 discapital, predo_rural, areaoficialkm2,
+				 asistesc_modif, per_alfa_modif, alumn_total,
+				 y_transf, g_func_general, 
+				 h_coca_inform, frontera, p_str)
+
+colSums(is.na(perp_96_00))
+
+#Imputación Donante: Vecino más próximo
+perp_imp96_00 <- perp_96_00  |>
+  impute_knn(p_str  ~ yy_hecho+muni_code_hecho+dept_code_hecho+
+  					 	discapital+predo_rural+areaoficialkm2+
+  					 	asistesc_modif+per_alfa_modif+alumn_total+
+  					 	y_transf+g_func_general+
+  					 	h_coca_inform+frontera,
+  					 backend = 'VIM') 
+
+colSums(is.na(perp_imp96_00))
+
+imputed_flags <- as.data.frame(is.na(perp_96_00) & !is.na(perp_imp96_00))
+
+perp_imp96_00$p_str_imputed <- imputed_flags$p_str
+
+result_perp_imp96_00 <- perp_imp96_00 %>%
+	group_by(p_str, yy_hecho) %>%
+	summarise(imp_donante=n())%>%
+	arrange(yy_hecho)
+
+```
+
+# 2001-2005
+
+```{r}
+perp_01_05 <- violencias_unidas_aux %>%
+	filter(violencia == "homicidio",
+				 yy_hecho >= "2001" & yy_hecho <= "2005")%>%
+	select(match_group_id, yy_hecho, muni_code_hecho, dept_code_hecho, 
+				 discapital, predo_rural, areaoficialkm2,
+				 asistesc_modif, per_alfa_modif, alumn_total,
+				 y_transf, g_func_general, 
+				 h_coca_inform, frontera, p_str)
+
+colSums(is.na(perp_01_05))
+
+#Imputación Donante: Vecino más próximo
+perp_imp01_05 <- perp_01_05  |>
+  impute_knn(p_str  ~ yy_hecho+muni_code_hecho+dept_code_hecho+
+  					 	discapital+predo_rural+areaoficialkm2+
+  					 	asistesc_modif+per_alfa_modif+alumn_total+
+  					 	y_transf+g_func_general+
+  					 	h_coca_inform+frontera,
+  					 backend = 'VIM') 
+
+colSums(is.na(perp_imp01_05))
+
+imputed_flags <- as.data.frame(is.na(perp_01_05) & !is.na(perp_imp01_05))
+
+perp_imp01_05$p_str_imputed <- imputed_flags$p_str
+
+result_perp_imp01_05 <- perp_imp01_05 %>%
+	group_by(p_str, yy_hecho) %>%
+	summarise(imp_donante=n())%>%
+	arrange(yy_hecho)
+
+```
+
+# 2006-2010
+
+```{r}
+perp_06_10 <- violencias_unidas_aux %>%
+	filter(violencia == "homicidio",
+				 yy_hecho >= "2006" & yy_hecho <= "2010")%>%
+	select(match_group_id, yy_hecho, muni_code_hecho, dept_code_hecho, 
+				 discapital, predo_rural, areaoficialkm2,
+				 asistesc_modif, per_alfa_modif, alumn_total,
+				 y_transf, g_func_general, 
+				 h_coca_inform, frontera, p_str)
+
+colSums(is.na(perp_06_10))
+
+#Imputación Donante: Vecino más próximo
+perp_imp06_10 <- perp_06_10  |>
+  impute_knn(p_str  ~ yy_hecho+muni_code_hecho+dept_code_hecho+
+  					 	discapital+predo_rural+areaoficialkm2+
+  					 	asistesc_modif+per_alfa_modif+alumn_total+
+  					 	y_transf+g_func_general+
+  					 	h_coca_inform+frontera,
+  					 backend = 'VIM') 
+
+colSums(is.na(perp_imp06_10))
+
+imputed_flags <- as.data.frame(is.na(perp_06_10) & !is.na(perp_imp06_10))
+
+perp_imp06_10$p_str_imputed <- imputed_flags$p_str
+
+result_perp_imp06_10 <- perp_imp06_10 %>%
+	group_by(p_str, yy_hecho) %>%
+	summarise(imp_donante=n())%>%
+	arrange(yy_hecho)
+
+```
+
+# 2011-2016
+
+```{r}
+perp_11_16 <- violencias_unidas_aux %>%
+	filter(violencia == "homicidio",
+				 yy_hecho >= "2011" & yy_hecho <= "2016")%>%
+	select(match_group_id, yy_hecho, muni_code_hecho, dept_code_hecho, 
+				 discapital, predo_rural, areaoficialkm2,
+				 asistesc_modif, per_alfa_modif, alumn_total,
+				 y_transf, g_func_general, 
+				 h_coca_inform, frontera, p_str)
+
+colSums(is.na(perp_11_16))
+
+#Imputación Donante: Vecino más próximo
+perp_imp11_16 <- perp_11_16  |>
+  impute_knn(p_str  ~ yy_hecho+muni_code_hecho+dept_code_hecho+
+  					 	discapital+predo_rural+areaoficialkm2+
+  					 	asistesc_modif+per_alfa_modif+alumn_total+
+  					 	y_transf+g_func_general+
+  					 	h_coca_inform+frontera,
+  					 backend = 'VIM') 
+
+colSums(is.na(perp_imp11_16))
+
+imputed_flags <- as.data.frame(is.na(perp_11_16) & !is.na(perp_imp11_16))
+
+perp_imp11_16$p_str_imputed <- imputed_flags$p_str
+
+result_perp_imp11_16 <- perp_imp11_16 %>%
+	group_by(p_str, yy_hecho) %>%
+	summarise(imp_donante=n())%>%
+	arrange(yy_hecho)
+
+```
+
+Juntar las imputaciones por donante: 
+
+```{r}
+perp_imp <- bind_rows(#perp_imp93_95, 
+	                                perp_imp96_00,
+																	perp_imp01_05,perp_imp06_10,
+																	perp_imp11_16)
+colSums(is.na(perp_imp))
+
+result_perp_donante <- bind_rows(#result_perp_imp93_95, 
+																	result_perp_imp96_00,
+																	result_perp_imp01_05,result_perp_imp06_10,
+																	result_perp_imp11_16) %>%
+	ungroup()%>%
+	group_by(p_str)%>%
+	summarize(imp_donante=sum(imp_donante))
+
+colSums(is.na(result_perp_donante))
+
+saveRDS(perp_imp, "./output/perp_imp_homicidio.rds")
+saveRDS(result_perp_donante, "./output/result_perp_donante_homicidio.rds")
+
+
+```
+Inserto los resultados de JEP-CEV-HRDAG:
+
+```{r}
+replicas_homicidio <- verdata::read_replicates(here::here("verdata-parquet/homicidio"),
+                                           "homicidio", c(1:10))
+
+tabla_documentada_perp <- verdata::summary_observed("homicidio",
+                                               replicas_homicidio, 
+                                               strata_vars = "p_str",
+                                               conflict_filter = TRUE,
+                                               forced_dis_filter = TRUE,
+                                               edad_minors_filter = FALSE,
+                                               include_props = TRUE)
+
+tabla_combinada_perp <- verdata::combine_replicates("homicidio",
+                                                tabla_documentada_perp,
+                                                replicas_homicidio, 
+                                                strata_vars = "p_str",
+                                                conflict_filter = TRUE,
+                                                forced_dis_filter = TRUE,
+                                                edad_minors_filter = FALSE,
+                                                include_props = TRUE)
+
+tabla_combinada_perp <- tabla_combinada_perp %>% 
+  select(p_str, observed, obs_prop_na, obs_prop, imp_lo, imp_mean, imp_hi,
+         imp_lo_p, imp_mean_p, imp_hi_p )%>%
+	left_join(result_perp_donante)
+
+#paged_table(tabla_combinada_homicidio, options = list(rows.print = 10, cols.print = 5))
+
+rm(replicas_homicidio)
+```
+
+
+#Comparación de resultados perpetrador
+
+```{r}
+
+plot_homi_perp_imp <- ggplot(tabla_combinada_perp,
+                aes(x = reorder(p_str, -observed), y = 0)) +
+  geom_crossbar(aes(ymin = imp_lo, ymax = imp_hi, fill = "Rango de imputación JEP-CEV-HRDAG"),
+                color = "#1F74B1") +
+  geom_col(aes(y = observed, fill = "Observado"), color = "#2F2F2F") +
+  geom_point(aes(y = imp_mean), pch = 21, color = '#63aee3', fill = "#1F74B1",
+             size = 1, stroke = 1.1) +
+	geom_point(aes(y = imp_donante, fill = "Imputado por donante"), pch = 21, 
+						 color = "red",
+             size = 1, stroke = 1.1, show.legend = FALSE) +
+  scale_y_continuous(labels = function(n){format(n, scientific = FALSE)}) +
+  theme_minimal() +
+  theme(legend.title = element_text(size = 6, face = "bold"),
+        legend.text = element_text(size = 9, face = "bold"),
+        legend.position = c(0.7, 0.7)) +
+  theme(axis.text.x = element_text(angle = 50, hjust = 1, face = "bold")) +
+  theme(legend.position = "top") +
+  labs(x = "Perpetradores",
+       y = "Número de víctimas",
+       fill = "") +
+  scale_fill_manual(values = c("Observado" = "#2F2F2F",
+                               "Rango de imputación JEP-CEV-HRDAG" = "#1F74B1",
+  														 "Imputado por donante" = "red"))
+
+plot_homi_perp_imp
+
+
+ggsave("./output/plot_homi_perp_imp.jpg",
+			 plot_homi_perp_imp)
+```
+
+

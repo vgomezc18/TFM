@@ -1,0 +1,127 @@
+---
+title: "Contraste de métodos de imputación estadística en la documentación de víctimas del
+conflicto armado colombiano"
+author: "Valentina Gómez^[[valegome@ucm.es](valegome@ucm.es)]"
+date: '`r format(Sys.time(), "%d %B %Y")`'
+output: pdf_document
+site: "bookdown::bookdown_site"
+lang: es-CO
+fig_width: 4
+fig_height: 2.5
+fontsize: 12pt
+urlcolor: blue
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+# Imputación por donante KNN - Etnia
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+require(pacman)
+p_load(here, readr, tidyverse, dplyr, validate, data.table, missForest, 
+			 VIM, lattice, simputation, mice, skimr, compareDF)
+
+```
+
+Importación de datos:
+
+```{r}
+input_dir <- here::here("06.union/output")
+output_dir <- here::here("08.modelos_imputacion/output")
+
+violencias_unidas_aux <- readRDS(paste0(input_dir,"/violencias_unidas_aux.rds")) %>%
+	as.data.table()
+
+```
+
+Se imputa por periodos de tiempo:
+
+
+```{r}
+# Función para el procesamiento de distintos tipos de violencia en un rango de años
+
+procesar_violencia <- function(data, tipo_violencia, start_year, end_year) {
+  violencia_filtrada <- data %>%
+    filter(violencia == tipo_violencia,
+           yy_hecho >= start_year & yy_hecho <= end_year) %>%
+    select(match_group_id, yy_hecho, muni_code_hecho, dept_code_hecho, 
+           discapital_mpio, predo_rural_mpio, areaoficialkm2_mpio,
+           asistesc_depto, per_alfa_depto, alumn_total_depto,
+           y_transf_depto, g_func_general_depto, etnia)
+  
+  print(paste("NA counts for", tipo_violencia, "from", start_year, "to", end_year))
+  print(colSums(is.na(violencia_filtrada)))
+  
+  violencia_imp <- violencia_filtrada  |>
+    impute_knn(etnia  ~ yy_hecho + muni_code_hecho + dept_code_hecho +
+                     discapital_mpio + predo_rural_mpio + areaoficialkm2_mpio +
+                     asistesc_depto + per_alfa_depto + alumn_total_depto +
+                     y_transf_depto + g_func_general_depto,
+               backend = 'VIM')
+  
+  print(paste("NA counts after imputation for", tipo_violencia, "from", start_year, "to", end_year))
+  print(colSums(is.na(violencia_imp)))
+  
+  imputed_flags <- as.data.frame(is.na(violencia_filtrada) & !is.na(violencia_imp))
+  
+  violencia_imp$etnia_imputed <- imputed_flags$etnia
+  
+  result <- violencia_imp %>%
+    group_by(etnia, yy_hecho) %>%
+    summarise(imp_donante = n()) %>%
+    arrange(yy_hecho)
+  
+  return(result)
+}
+
+# Tipos de violencia a procesar
+tipos_violencia <- c("desaparicion", "homicidio", "reclutamiento", "secuestro")
+
+# Periodos de años a procesar
+periodos <- list(
+  c(1996, 2000),
+  c(2001, 2005),
+  c(2006, 2010),
+  c(2011, 2016)
+)
+
+# Lista para almacenar los resultados
+resultados <- list()
+
+# Procesar cada combinación de tipo de violencia y periodo de años
+for (tipo in tipos_violencia) {
+  for (periodo in periodos) {
+    start_year <- periodo[1]
+    end_year <- periodo[2]
+    result <- procesar_violencia(violencias_unidas_aux, tipo, start_year, end_year)
+    resultados[[paste(tipo, start_year, end_year, sep = "_")]] <- result
+  }
+}
+
+# Acceder a los resultados
+result_desap_imp96_00 <- resultados[["desaparicion_1996_2000"]]
+result_desap_imp01_05 <- resultados[["desaparicion_2001_2005"]]
+result_desap_imp06_10 <- resultados[["desaparicion_2006_2010"]]
+result_desap_imp11_16 <- resultados[["desaparicion_2011_2016"]]
+
+result_homi_imp96_00 <- resultados[["homicidio_1996_2000"]]
+result_homi_imp01_05 <- resultados[["homicidio_2001_2005"]]
+result_homi_imp06_10 <- resultados[["homicidio_2006_2010"]]
+result_homi_imp11_16 <- resultados[["homicidio_2011_2016"]]
+
+result_reclu_imp96_00 <- resultados[["reclutamiento_1996_2000"]]
+result_reclu_imp01_05 <- resultados[["reclutamiento_2001_2005"]]
+result_reclu_imp06_10 <- resultados[["reclutamiento_2006_2010"]]
+result_reclu_imp11_16 <- resultados[["reclutamiento_2011_2016"]]
+
+result_secue_imp96_00 <- resultados[["secuestro_1996_2000"]]
+result_secue_imp01_05 <- resultados[["secuestro_2001_2005"]]
+result_secue_imp06_10 <- resultados[["secuestro_2006_2010"]]
+result_secue_imp11_16 <- resultados[["secuestro_2011_2016"]]
+
+saveRDS(resultados, (paste0(output_dir,"/imputacion_donante_etnia.rds")))
+
+```
+

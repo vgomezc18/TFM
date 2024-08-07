@@ -1,0 +1,130 @@
+---
+title: "Contraste de métodos de imputación estadística en la documentación de víctimas del
+conflicto armado colombiano"
+author: "Valentina Gómez^[[valegome@ucm.es](valegome@ucm.es)]"
+date: '`r format(Sys.time(), "%d %B %Y")`'
+output: pdf_document
+site: "bookdown::bookdown_site"
+lang: es-CO
+fig_width: 4
+fig_height: 2.5
+fontsize: 12pt
+urlcolor: blue
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+# Imputación por Regresión logística - Sexo
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+require(pacman)
+p_load(here, readr, tidyverse, dplyr, validate, data.table, missForest, 
+			 VIM, lattice, simputation, mice, skimr, compareDF)
+
+```
+
+Importación de datos:
+
+```{r}
+input_dir <- here::here("06.union/output")
+output_dir <- here::here("08.modelos_imputacion/output")
+
+violencias_unidas_aux <- readRDS(paste0(input_dir,"/violencias_unidas_aux.rds")) %>%
+	as.data.table()
+```
+
+Convertimos la variable sexo en factor: 
+
+```{r}
+violencias_unidas_aux$sexo <- factor(violencias_unidas_aux$sexo, levels = c("HOMBRE", "MUJER"))
+class(violencias_unidas_aux$sexo)
+```
+
+Dejo las variables que se usarán en la imputación y realizamos sólo 1 imputación (m=1) para realizar una imputación simple:
+
+La imputación asigna probabilidades de que sea hombre y mujer y luego asigna la categoría según la probabilidad.
+
+```{r}
+# Función para el procesamiento de distintos tipos de violencia en un rango de años
+procesar_violencia <- function(data, tipo_violencia, start_year, end_year) {
+  violencia_filtrada <- data %>%
+    filter(violencia == tipo_violencia,
+           yy_hecho >= start_year & yy_hecho <= end_year) %>%
+    select(yy_hecho, muni_code_hecho, 
+           discapital_mpio, predo_rural_mpio, areaoficialkm2_mpio,
+           asistesc_depto, 
+           nac_mujeres_mpio, defunciones_mpio, sexo)
+  
+  print(paste("NA counts for", tipo_violencia, "from", start_year, "to", end_year))
+  print(colSums(is.na(violencia_filtrada)))
+  
+  # Especificar los métodos de imputación para cada variable
+  meth <- c("pmm", "pmm", 
+            "pmm", "pmm", "pmm",
+            "pmm",
+            "pmm", "pmm", "logreg")
+  
+  # Ejecutar la imputación múltiple
+  violencia_imp_temp <- mice(violencia_filtrada, method = meth, m = 1, seed = 123)
+  
+  # Obtener el conjunto de datos completo imputado
+  violencia_imp <- complete(violencia_imp_temp, action = "long") %>%
+    select(-.imp, -.id)
+  
+  print(paste("NA counts after imputation for", tipo_violencia, "from", start_year, "to", end_year))
+  print(colSums(is.na(violencia_imp)))
+  
+  # Crear indicadores de imputación
+  imputed_flags <- as.data.frame(is.na(violencia_filtrada))
+  
+  violencia_imp <- violencia_imp %>%
+    mutate(sexo_imputed = imputed_flags$sexo & !is.na(sexo))
+  
+  # Agrupar y resumir los datos
+  result <- violencia_imp %>%
+    group_by(sexo, yy_hecho) %>%
+    summarise(imp_regresion_log = n()) %>%
+    arrange(yy_hecho)
+  
+  return(result)
+}
+
+# Tipos de violencia a procesar
+tipos_violencia <- c("desaparicion", "homicidio", "reclutamiento", "secuestro")
+
+# Periodos de años a procesar
+periodos <- list(
+  c(1996, 2016)
+)
+
+# Lista para almacenar los resultados
+resultados <- list()
+
+# Procesar cada combinación de tipo de violencia y periodo de años
+for (tipo in tipos_violencia) {
+  for (periodo in periodos) {
+    start_year <- periodo[1]
+    end_year <- periodo[2]
+    result <- procesar_violencia(violencias_unidas_aux, tipo, start_year, end_year)
+    resultados[[paste(tipo, start_year, end_year, sep = "_")]] <- result
+  }
+}
+
+# Acceder a los resultados
+result_desap_imp96_16 <- resultados[["desaparicion_1996_2016"]]
+
+result_homi_imp96_16 <- resultados[["homicidio_1996_2016"]]
+
+result_reclu_imp96_16 <- resultados[["reclutamiento_1996_2016"]]
+
+result_secue_imp96_16 <- resultados[["secuestro_1996_2016"]]
+
+saveRDS(resultados, (paste0(output_dir,"/imputacion_regresion_sexo.rds")))
+
+```
+
+
+
+
