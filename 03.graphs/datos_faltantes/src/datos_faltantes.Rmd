@@ -1,0 +1,175 @@
+---
+title: "Contraste de métodos de imputación estadística en la documentación de víctimas del
+conflicto armado colombiano"
+author: "Valentina Gómez^[[valegome@ucm.es](valegome@ucm.es)]"
+date: '`r format(Sys.time(), "%d %B %Y")`'
+output: pdf_document
+site: "bookdown::bookdown_site"
+lang: es-CO
+fig_width: 4
+fig_height: 2.5
+fontsize: 12pt
+urlcolor: blue
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+# Datos faltantes
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+pacman::p_load(ggplot2, dplyr, rmarkdown, verdata, LCMCR, here,
+               arrow, dplyr, rlang, purrr, glue, tidyr, stringr, 
+               gridExtra, VIM, verdata, tidyverse, naniar, sf)
+
+options(warn = -1)
+
+```
+
+Importamos la base de datos de data4_graphs: 
+
+```{r}
+data_4graphs <- readRDS(here::here("02.data_4_graphs/output/data_4graphs.rds"))
+output_dir <- here::here("03.graphs/datos_faltantes/output")
+```
+
+Realizamos gráficos para ver los datos faltantes:
+
+## Por Macroregión
+```{r}
+
+variables_visualizar <- c("edad_jep", "etnia", "p_str", "dept_code_hecho",
+													"sexo", "macroregion", "muni_code_hecho", "yy_hecho")
+
+df_graph <- data_4graphs %>%
+	select(all_of(variables_visualizar))
+
+plot_missvar_macroregiones <- gg_miss_var(df_graph, facet = macroregion, show_pct = TRUE)
+
+ggsave(paste0(output_dir,"/plot_missvar_macroregiones.jpg"), plot_missvar_macroregiones)
+
+histMiss(df_graph, pos = 6, selection = "any", 
+				 cex.axis = 0.47, xlab = "")
+
+
+data_histmiss <- df_graph %>%
+	mutate(dummy_missing  = case_when(rowSums(is.na(.))> 0 ~ 1,
+																		TRUE ~ 0),
+				 dummy_completo  = case_when(rowSums(is.na(.)) == 0 ~ 1,
+				 														TRUE ~ 0)) %>%
+	group_by(macroregion) %>%
+	summarize(total_missing = sum(dummy_missing), 
+						total_completo = sum(dummy_completo))%>%
+	mutate(perc_missing = round(total_missing/(total_missing + total_completo)*100,2),
+				 perc_completo = round(total_completo/(total_missing + total_completo)*100,2))
+
+data_miss <- data_histmiss %>%
+	select(macroregion, perc_missing) %>%
+	rename(Porcentaje = perc_missing,
+				 Macroregiones = macroregion) %>%
+	mutate(Datos = "Faltantes")
+
+data_complete <- data_histmiss %>%
+	select(macroregion, perc_completo) %>%
+	rename(Porcentaje = perc_completo,
+				 Macroregiones = macroregion) %>%
+	mutate(Datos = "Completos")
+
+data_histmiss <- rbind(data_miss, data_complete) %>%
+	filter(!is.na(Macroregiones))
+
+# GRAFICO TFM
+
+data_histmiss$Macroregiones <- factor(data_histmiss$Macroregiones,
+																			levels = c("Bogotá", "Sur Andina",
+																								 "Pacífico", "Antioquia-Eje Cafetero",
+																								 "Caribe e Insular", "Nororiente",
+																								 "Centro Andino", "Magdalena Medio",
+																								 "Orinoquía", "Amazonía"))
+
+plot_histmiss_macroregiones <- ggplot(data = data_histmiss, aes(x = Macroregiones, y = Porcentaje, fill = Datos)) +
+	geom_bar(stat = "identity", position = "stack", color = "black") +  
+	geom_text(aes(label = paste0(Porcentaje, "%"), color = Datos), 
+						vjust = -0.1, hjust = 0.5, 
+						position = position_stack(vjust = 0.5), 
+						size = 5, show.legend = FALSE) +
+	scale_fill_manual(values = c("#87CEEB", "red")) +
+	scale_color_manual(values = c("black", "white")) +
+	theme(panel.background = element_rect(fill = "white"),
+				axis.title = element_text(size = 12),
+				axis.text = element_text(size = 12),
+				legend.text = element_text(size = 12),
+				axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+
+ggsave(paste0(output_dir,"/plot_histmiss_macroregiones.jpg"), plot_histmiss_macroregiones,
+							width = 12, height = 7, units = "in")
+
+```
+
+## Por periodos presidenciales
+
+```{r}
+
+variables_visualizar <- c("edad_jep", "etnia", "p_str", "dept_code_hecho",
+													"sexo", "macroregion", "muni_code_hecho", "periodo_pres")
+
+df_graph <- data_4graphs %>%
+	select(all_of(variables_visualizar))
+
+plot_missvar_periodo_pres <- gg_miss_var(df_graph, facet = periodo_pres, show_pct = TRUE)
+
+ggsave(paste0(output_dir,"/plot_missvar_periodo_pres.jpg"), plot_missvar_periodo_pres)
+
+
+data_histmiss <- df_graph %>%
+	mutate(dummy_missing  = case_when(rowSums(is.na(.))> 0 ~ 1,
+																		TRUE ~ 0),
+				 dummy_completo  = case_when(rowSums(is.na(.)) == 0 ~ 1,
+				 														TRUE ~ 0)) %>%
+	group_by(periodo_pres) %>%
+	summarize(total_missing = sum(dummy_missing), 
+						total_completo = sum(dummy_completo))%>%
+	mutate(perc_missing = round(total_missing/(total_missing + total_completo)*100,2),
+				 perc_completo = round(total_completo/(total_missing + total_completo)*100,2))
+
+data_miss <- data_histmiss %>%
+	select(periodo_pres, perc_missing) %>%
+	rename(Porcentaje = perc_missing,
+				 Periodo_Presidencial = periodo_pres) %>%
+	mutate(Datos = "Faltantes")
+
+data_complete <- data_histmiss %>%
+	select(periodo_pres, perc_completo) %>%
+	rename(Porcentaje = perc_completo,
+				 Periodo_Presidencial = periodo_pres) %>%
+	mutate(Datos = "Completos")
+
+data_histmiss <- rbind(data_miss, data_complete) %>%
+	filter(!is.na(Periodo_Presidencial))
+
+#GRAFICO FINAL TFM
+
+plot_histmiss_periodo_pres <- ggplot(data = data_histmiss, aes(x = Periodo_Presidencial, y = Porcentaje, fill = Datos)) +
+	geom_bar(stat = "identity", position = "stack", color = "black") +  
+	geom_text(aes(label = paste0(Porcentaje, "%"), color = Datos), 
+						vjust = -0.1, hjust = 0.5, 
+						position = position_stack(vjust = 0.5), 
+						size = 5, show.legend = FALSE) +
+	scale_fill_manual(values = c("#87CEEB", "red")) +
+	scale_color_manual(values = c("black", "white")) +
+	theme(panel.background = element_rect(fill = "white"),
+				axis.title = element_text(size = 12),
+				axis.text = element_text(size = 12),
+				legend.text = element_text(size = 12),
+				axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+
+ggsave(paste0(output_dir,"/plot_histmiss_periodo_pres.jpg"), plot_histmiss_periodo_pres,
+							width = 12, height = 7, units = "in")
+
+```
+
+

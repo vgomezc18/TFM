@@ -1,0 +1,79 @@
+---
+title: "Contraste de métodos de imputación estadística en la documentación de víctimas del
+conflicto armado colombiano"
+author: "Valentina Gómez^[[valegome@ucm.es](valegome@ucm.es)]"
+date: '`r format(Sys.time(), "%d %B %Y")`'
+output: pdf_document
+site: "bookdown::bookdown_site"
+lang: es-CO
+fig_width: 4
+fig_height: 2.5
+fontsize: 12pt
+urlcolor: blue
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+# Mapa de Colombia por Macroregiones definidas por la Comisión de la Verdad
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+pacman::p_load(ggplot2, dplyr, rmarkdown, verdata, LCMCR, here,
+               arrow, dplyr, rlang, purrr, glue, tidyr, stringr, 
+               gridExtra, VIM, verdata, tidyverse, naniar, sf,
+							 arrow, RColorBrewer)
+
+options(warn = -1)
+
+```
+
+Archivo shape de Colombia: 
+
+```{r}
+#https://datosabiertos.esri.co/datasets/53beb24d21f146c38a42db63c92e3460_0/explore?location=4.457299%2C-74.297150%2C4.71&showTable=true 
+
+shp <- st_read(here::here("03.graphs/mapa_colombia/input/Colombia.shp")) %>%
+	dplyr::mutate(DPTO_CCDGO = as.numeric(DPTO_CCDGO),
+								DPTO_CCDGO = as.character(DPTO_CCDGO),
+								muni_code_hecho = paste0(DPTO_CCDGO, MPIO_CCDGO)) %>%
+	dplyr::select(muni_code_hecho, geometry)
+
+```
+
+Realización de mapa:
+
+```{r}
+# Crear observaciones de San Andrés y Providencia en las macroregiones:
+
+islas_obs <- data.frame(
+  macroregion = c("Caribe e Insular", "Caribe e Insular"),
+  muni_code_hecho = c("88001", "88564")
+)
+
+map_macroregiones <- macro_regiones %>%
+	add_row(islas_obs) %>%
+	left_join(shp)
+
+map_macroregiones <- st_as_sf(map_macroregiones)
+
+
+colores_10 <- brewer.pal(10, "Set3")
+#colores_10[colores_10 == "#BEBADA"] <- "#C38560"
+colores_10_order <- c("#8DD3C7", "#FFFFB3","#B3DE69", "#FB8072", "#80B1D3",
+											"#FCCDE5", "#D9D9D9", "#FDB462","#C38560" , "#BC80BD")
+
+plot_macro <- ggplot() +
+  geom_sf(data = map_macroregiones, aes(fill = macroregion)) +
+  labs(title = "Mapa de Colombia por Macroregiones", fill = "Macroregión",
+  		 caption = "Fuente: Elaboración propia con macroregiones definidas por la CEV") +
+	scale_fill_manual(values = colores_10_order) +
+	theme_minimal()
+
+```
+
+Guardar el mapa: 
+```{r}
+ggsave(here::here("03.graphs/mapa_colombia/output/plot_macro.jpg"), plot_macro)
+```
+
