@@ -22,7 +22,7 @@ La carpeta de inputs no contiene las bases de datos que se usaron del Panel Muni
 - PANEL_DE_EDUCACION(2023)
 - PANEL_SALUD_Y_SERVICIOS
 
-6. [06.union](https://github.com/vgomezc18/TFM/tree/main/06.union): En esta carpeta se unen las variables auxiliares con la base de datos de datos documentados. Se filtran los datos de 1996 en adelante.
+6. [06.union](https://github.com/vgomezc18/TFM/tree/main/06.union): En esta carpeta se unen las variables auxiliares con la base de datos de datos documentados. Se filtran los datos de 1998 en adelante.
 
 7. [07.descriptivos](https://github.com/vgomezc18/TFM/tree/main/07.descriptivos): En esta carpeta se realizan algunos conteos de los valores faltantes para cada una de las variables de interés (etnia, perpetrador, edad y sexo).
 
