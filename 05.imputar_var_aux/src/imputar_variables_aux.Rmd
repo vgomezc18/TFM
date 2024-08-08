@@ -224,13 +224,13 @@ buen_gobierno_edit <- buen_gobierno_edit %>%
   left_join(deptos_mpios_col %>% select(codmpio, coddepto), by = "codmpio")
 
 suma_por_depto_gob <- buen_gobierno_edit %>%
-	group_by(coddepto) %>%
+	group_by(coddepto, ano) %>%
 	summarise(y_transf_depto = sum(y_transf_mpio, na.rm = TRUE),
 						g_func_general_depto = sum (g_func_general_mpio, na.rm = TRUE)) %>%
 	ungroup()
 
 buen_gobierno_edit1 <- buen_gobierno_edit %>%
-  left_join(suma_por_depto_gob, by = "coddepto") %>%
+  left_join(suma_por_depto_gob, by = c("coddepto", "ano")) %>%
 	select(codmpio, ano, y_transf_depto, g_func_general_depto)
 
 colSums(is.na(buen_gobierno_edit1))
@@ -261,12 +261,12 @@ conflicto_violencia_edit <- conflicto_violencia_edit %>%
   left_join(deptos_mpios_col %>% select(codmpio, coddepto), by = "codmpio")
 
 suma_por_depto_coca <- conflicto_violencia_edit %>%
-	group_by(coddepto) %>%
+	group_by(coddepto, ano) %>%
 	summarise(H_coca_depto = sum(H_coca, na.rm = TRUE))%>%
 	ungroup()
 
 conflicto_violencia_edit1 <- conflicto_violencia_edit %>%
-  left_join(suma_por_depto_coca, by = "coddepto") %>%
+  left_join(suma_por_depto_coca, by = c("coddepto", "ano")) %>%
 	select(codmpio, ano, H_coca_depto)
 
 colSums(is.na(conflicto_violencia_edit1))
@@ -353,14 +353,14 @@ educacion_edit2 <- educacion_edit1 %>%
   left_join(deptos_mpios_col %>% select(codmpio, coddepto), by = "codmpio")
 
 suma_por_depto_educ <- educacion_edit2 %>%
-	group_by(coddepto) %>%
+	group_by(coddepto, ano) %>%
 	summarise(asistesc_depto = sum(asistesc_mpio, na.rm = TRUE),
 						per_alfa_depto = sum(per_alfa_mpio, na.rm = TRUE),
 						alumn_total_depto = sum(alumn_total, na.rm = TRUE))%>%
 	ungroup()
 
 educacion_edit3 <- educacion_edit2 %>%
-  left_join(suma_por_depto_educ, by = "coddepto") %>%
+  left_join(suma_por_depto_educ, by = c("coddepto", "ano")) %>%
 	select(codmpio, ano, asistesc_depto, per_alfa_depto, alumn_total_depto)
 
 colSums(is.na(educacion_edit3))

@@ -140,7 +140,7 @@ Cuando se realiza la unión de los nacimientos y las defunciones, hay municipios
 ```{r}
 
 suma_por_depto_nac_def <- violencias_unidas_join %>%
-	group_by(dept_code_hecho) %>%
+	group_by(dept_code_hecho, yy_hecho) %>%
 	summarise(tot_nacimientos_depto = sum(tot_nacimientos_mpio, na.rm = TRUE),
 						tot_defunciones_depto = sum(defunciones_mpio, na.rm = TRUE),
 						nac_hombres_depto = sum(nac_hombres_mpio, na.rm = TRUE),
@@ -148,7 +148,7 @@ suma_por_depto_nac_def <- violencias_unidas_join %>%
 	ungroup()
 
 violencias_unidas_join_edit <- violencias_unidas_join %>%
-  left_join(suma_por_depto_nac_def, by = "dept_code_hecho")
+  left_join(suma_por_depto_nac_def, by = c ("dept_code_hecho", "yy_hecho"))
 
 colSums(is.na(violencias_unidas_join_edit))
 ```
@@ -171,11 +171,20 @@ violencias_unidas_join_edit1 <- violencias_unidas_join_edit %>%
 colSums(is.na(violencias_unidas_join_edit1))
 
 ```
+Se filtra la base de datos de 1998 en adelante: 
+
+```{r}
+violencias_unidas_join_edit1_filter <- violencias_unidas_join_edit1 %>%
+	filter(yy_hecho >= 1998)  
+
+colSums(is.na(violencias_unidas_join_edit1_filter))
+
+```
 
 Exportar base de datos:
 
 ```{r}
-saveRDS(violencias_unidas_join_edit1, (paste0(output_dir,"/violencias_unidas_aux.rds")))
+saveRDS(violencias_unidas_join_edit1_filter, (paste0(output_dir,"/violencias_unidas_aux.rds")))
 ```
 
 
