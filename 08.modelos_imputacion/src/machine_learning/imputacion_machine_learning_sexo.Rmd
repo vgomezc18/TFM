@@ -147,8 +147,8 @@ for (grid_id in 1:n_cells){
 names(roc_sexo_train.lst) <- paste0('hyper_cell= ', 1:n_cells)
 names(roc_sexo_test.lst) <- paste0('hyper_cell= ', 1:n_cells)
 
-saveRDS(roc_sexo_train.lst, (paste0(output_dir,"/roc_sexo_train.lst.rds")))
-saveRDS(roc_sexo_test.lst, (paste0(output_dir,"/roc_sexo_test.lst.rds")))
+# saveRDS(roc_sexo_train.lst, (paste0(output_dir,"/roc_sexo_train.lst.rds")))
+# saveRDS(roc_sexo_test.lst, (paste0(output_dir,"/roc_sexo_test.lst.rds")))
 
 ```
 

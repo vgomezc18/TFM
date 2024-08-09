@@ -96,7 +96,7 @@ tipos_violencia <- c("desaparicion", "homicidio", "reclutamiento", "secuestro")
 
 # Periodos de años a procesar
 periodos <- list(
-  c(1996, 2016)
+  c(1998, 2016)
 )
 
 # Lista para almacenar los resultados
@@ -113,13 +113,13 @@ for (tipo in tipos_violencia) {
 }
 
 # Acceder a los resultados
-result_desap_imp96_16 <- resultados[["desaparicion_1996_2016"]]
+result_desap_imp96_16 <- resultados[["desaparicion_1998_2016"]]
 
-result_homi_imp96_16 <- resultados[["homicidio_1996_2016"]]
+result_homi_imp96_16 <- resultados[["homicidio_1998_2016"]]
 
-result_reclu_imp96_16 <- resultados[["reclutamiento_1996_2016"]]
+result_reclu_imp96_16 <- resultados[["reclutamiento_1998_2016"]]
 
-result_secue_imp96_16 <- resultados[["secuestro_1996_2016"]]
+result_secue_imp96_16 <- resultados[["secuestro_1998_2016"]]
 
 saveRDS(resultados, (paste0(output_dir,"/imputacion_regresion_sexo.rds")))
 

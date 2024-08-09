@@ -85,22 +85,22 @@ tabla_documentada_reclutamiento <- resumir_tabla_documentada("reclutamiento", re
 Inserto los resultados por donante: 
 
 ```{r}
-donante_sexo_desap <- rbind(imputacion_donante_sexo[["desaparicion_1996_2000"]], 
+donante_sexo_desap <- rbind(imputacion_donante_sexo[["desaparicion_1998_2000"]], 
 			imputacion_donante_sexo[["desaparicion_2001_2005"]],
 			imputacion_donante_sexo[["desaparicion_2006_2010"]],
 			imputacion_donante_sexo[["desaparicion_2011_2016"]])
 
-donante_sexo_homi <- rbind(imputacion_donante_sexo[["homicidio_1996_2000"]], 
+donante_sexo_homi <- rbind(imputacion_donante_sexo[["homicidio_1998_2000"]], 
 			imputacion_donante_sexo[["homicidio_2001_2005"]],
 			imputacion_donante_sexo[["homicidio_2006_2010"]],
 			imputacion_donante_sexo[["homicidio_2011_2016"]])
 
-donante_sexo_secue <- rbind(imputacion_donante_sexo[["secuestro_1996_2000"]], 
+donante_sexo_secue <- rbind(imputacion_donante_sexo[["secuestro_1998_2000"]], 
 			imputacion_donante_sexo[["secuestro_2001_2005"]],
 			imputacion_donante_sexo[["secuestro_2006_2010"]],
 			imputacion_donante_sexo[["secuestro_2011_2016"]])
 
-donante_sexo_reclu <- rbind(imputacion_donante_sexo[["reclutamiento_1996_2000"]], 
+donante_sexo_reclu <- rbind(imputacion_donante_sexo[["reclutamiento_1998_2000"]], 
 			imputacion_donante_sexo[["reclutamiento_2001_2005"]],
 			imputacion_donante_sexo[["reclutamiento_2006_2010"]],
 			imputacion_donante_sexo[["reclutamiento_2011_2016"]])
@@ -109,13 +109,13 @@ donante_sexo_reclu <- rbind(imputacion_donante_sexo[["reclutamiento_1996_2000"]]
 Inserto los resultados por regresión: 
 
 ```{r}
-regresion_sexo_desap <- as.data.frame(imputacion_regresion_sexo[["desaparicion_1996_2016"]])
+regresion_sexo_desap <- as.data.frame(imputacion_regresion_sexo[["desaparicion_1998_2016"]])
 
-regresion_sexo_homi <- as.data.frame(imputacion_regresion_sexo[["homicidio_1996_2016"]])
+regresion_sexo_homi <- as.data.frame(imputacion_regresion_sexo[["homicidio_1998_2016"]])
 
-regresion_sexo_secue <- as.data.frame(imputacion_regresion_sexo[["secuestro_1996_2016"]])
+regresion_sexo_secue <- as.data.frame(imputacion_regresion_sexo[["secuestro_1998_2016"]])
 
-regresion_sexo_reclu <- as.data.frame(imputacion_regresion_sexo[["reclutamiento_1996_2016"]])
+regresion_sexo_reclu <- as.data.frame(imputacion_regresion_sexo[["reclutamiento_1998_2016"]])
 ```
 
 Inserto los resultados por Random Forest: 
@@ -224,7 +224,7 @@ mujeres_proyecto_desap <- tabla_combinada_desaparicion %>%
 
 plot_desap_mujeres_year_imp <- mujeres_proyecto_desap %>%
   mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-  filter(yy_hecho >= 1996) %>%
+  filter(yy_hecho >= 1998) %>%
   ggplot(aes(x = yy_hecho)) +
   geom_line(aes(y = observed, color = "Observado"), size = 1) +
   geom_line(aes(y = imp_mean, color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -269,7 +269,7 @@ hombres_proyecto_desap <- tabla_combinada_desaparicion %>%
 
 plot_desap_hombres_year_imp <- hombres_proyecto_desap %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-	  filter(yy_hecho >= 1996) %>%
+	  filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -325,7 +325,7 @@ mujeres_proyecto_homi <- tabla_combinada_homicidio %>%
 
 plot_homi_mujeres_year_imp <- mujeres_proyecto_homi %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-	  filter(yy_hecho >= 1996) %>%
+	  filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -377,7 +377,7 @@ hombres_proyecto_homi <- tabla_combinada_homicidio %>%
 
 plot_homi_hombres_year_imp <- hombres_proyecto_homi %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-	  filter(yy_hecho >= 1996) %>%
+	  filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -433,7 +433,7 @@ mujeres_proyecto_secue <- tabla_combinada_secuestro %>%
 
 plot_secue_mujeres_year_imp <- mujeres_proyecto_secue %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-	  filter(yy_hecho >= 1996) %>%
+	  filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -485,7 +485,7 @@ hombres_proyecto_secue <- tabla_combinada_secuestro %>%
 
 plot_secue_hombres_year_imp <- hombres_proyecto_secue %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-	  filter(yy_hecho >= 1996) %>%
+	  filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -541,7 +541,7 @@ mujeres_proyecto_reclu <- tabla_combinada_reclutamiento %>%
 
 plot_reclu_mujeres_year_imp <- mujeres_proyecto_reclu %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-	  filter(yy_hecho >= 1996) %>%
+	  filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -593,7 +593,7 @@ hombres_proyecto_reclu <- tabla_combinada_reclutamiento %>%
 
 plot_reclu_hombres_year_imp <- hombres_proyecto_reclu %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-	  filter(yy_hecho >= 1996) %>%
+	  filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +

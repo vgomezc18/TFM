@@ -59,14 +59,18 @@ resumir_tabla_documentada <- function(nombre_archivo, replicas, strata_vars, con
 strata_vars_comunes <- c("p_str")
 replicas <- c(1:10)
 
-# Cargar réplicas
-replicas_desaparicion <- cargar_replicas("01.tablas_documentadas/input/verdata-parquet/desaparicion", "desaparicion", replicas)
+# Cargar réplicas y filtrarlas del 98 en adelante
+replicas_desaparicion <- cargar_replicas("01.tablas_documentadas/input/verdata-parquet/desaparicion", "desaparicion", replicas) %>%
+	filter(yy_hecho >= 1998)
 
-replicas_homicidio <- cargar_replicas("01.tablas_documentadas/input/verdata-parquet/homicidio", "homicidio", replicas)
+replicas_homicidio <- cargar_replicas("01.tablas_documentadas/input/verdata-parquet/homicidio", "homicidio", replicas) %>%
+	filter(yy_hecho >= 1998)
 
-replicas_secuestro <- cargar_replicas("01.tablas_documentadas/input/verdata-parquet/secuestro", "secuestro", replicas)
+replicas_secuestro <- cargar_replicas("01.tablas_documentadas/input/verdata-parquet/secuestro", "secuestro", replicas) %>%
+	filter(yy_hecho >= 1998)
 
-replicas_reclutamiento <- cargar_replicas("01.tablas_documentadas/input/verdata-parquet/reclutamiento", "reclutamiento", replicas)
+replicas_reclutamiento <- cargar_replicas("01.tablas_documentadas/input/verdata-parquet/reclutamiento", "reclutamiento", replicas) %>%
+	filter(yy_hecho >= 1998)
 
 # Crear tablas documentadas
 tabla_documentada_desaparicion <- resumir_tabla_documentada("desaparicion", replicas_desaparicion, strata_vars_comunes, forced_dis_filter = TRUE)
@@ -83,7 +87,7 @@ tabla_documentada_reclutamiento <- resumir_tabla_documentada("reclutamiento", re
 Inserto los resultados por donante: 
 
 ```{r}
-donante_p_str_desap <- rbind(imputacion_donante_p_str[["desaparicion_1996_2000"]], 
+donante_p_str_desap <- rbind(imputacion_donante_p_str[["desaparicion_1998_2000"]], 
 			imputacion_donante_p_str[["desaparicion_2001_2005"]],
 			imputacion_donante_p_str[["desaparicion_2006_2010"]],
 			imputacion_donante_p_str[["desaparicion_2011_2016"]]) %>%
@@ -91,15 +95,16 @@ donante_p_str_desap <- rbind(imputacion_donante_p_str[["desaparicion_1996_2000"]
 	group_by(p_str)%>%
 	summarize(imp_donante=sum(imp_donante))
 
-donante_p_str_homi <- rbind(imputacion_donante_p_str[["homicidio_1996_2000"]], 
-			imputacion_donante_p_str[["homicidio_2001_2005"]],
+donante_p_str_homi <- rbind(imputacion_donante_p_str[["homicidio_1998_2000"]], 
+			imputacion_donante_p_str[["homicidio_2001_2003"]],
+			imputacion_donante_p_str[["homicidio_2004_2005"]],
 			imputacion_donante_p_str[["homicidio_2006_2010"]],
 			imputacion_donante_p_str[["homicidio_2011_2016"]])%>%
 	ungroup()%>%
 	group_by(p_str)%>%
 	summarize(imp_donante=sum(imp_donante))
 
-donante_p_str_secue <- rbind(imputacion_donante_p_str[["secuestro_1996_2000"]], 
+donante_p_str_secue <- rbind(imputacion_donante_p_str[["secuestro_1998_2000"]], 
 			imputacion_donante_p_str[["secuestro_2001_2005"]],
 			imputacion_donante_p_str[["secuestro_2006_2010"]],
 			imputacion_donante_p_str[["secuestro_2011_2016"]])%>%
@@ -107,7 +112,7 @@ donante_p_str_secue <- rbind(imputacion_donante_p_str[["secuestro_1996_2000"]],
 	group_by(p_str)%>%
 	summarize(imp_donante=sum(imp_donante))
 
-donante_p_str_reclu <- rbind(imputacion_donante_p_str[["reclutamiento_1996_2000"]], 
+donante_p_str_reclu <- rbind(imputacion_donante_p_str[["reclutamiento_1998_2000"]], 
 			imputacion_donante_p_str[["reclutamiento_2001_2005"]],
 			imputacion_donante_p_str[["reclutamiento_2006_2010"]],
 			imputacion_donante_p_str[["reclutamiento_2011_2016"]])%>%
@@ -213,7 +218,7 @@ tabla_combinada_reclutamiento <- tabla_combinada_reclutamiento %>%
 #   na.omit()
 
 plot_desap_perp_imp <- ggplot(tabla_combinada_desaparicion,
-       aes(x = reorder(p_str, -observed), y = 0)) +
+        aes(x = reorder(p_str, -observed), y = 0)) +
   geom_crossbar(aes(ymin = imp_lo, ymax = imp_hi, fill = "Rango y valor medio de imputación JEP-CEV-HRDAG"),
                 color = '#63aee3') +
   geom_col(aes(y = observed, fill = "Observado"), color = "#2F2F2F") +
@@ -221,9 +226,8 @@ plot_desap_perp_imp <- ggplot(tabla_combinada_desaparicion,
              size = 1, stroke = 1.1) +
   geom_point(aes(y = imp_donante, color = "Imputado por donante", shape = "Imputado por donante"), 
              fill = "red", size = 1, stroke = 1.1, show.legend = TRUE) +
-  scale_y_continuous(labels = function(n){format(n, scientific = FALSE)}) +
-	scale_y_continuous(breaks = seq(0, max(tabla_combinada_desaparicion$imp_hi,
-																				 na.rm = TRUE), by = 10000)) +
+  scale_y_continuous(labels = function(n) format(n, scientific = FALSE),
+                     breaks = seq(0, max(tabla_combinada_desaparicion$imp_hi, na.rm = TRUE), by = 10000)) +
   theme_minimal() +
   theme(legend.title = element_text(size = 6, face = "bold"),
         legend.text = element_text(size = 9, face = "bold"),
@@ -238,7 +242,7 @@ plot_desap_perp_imp <- ggplot(tabla_combinada_desaparicion,
        shape = "",
        title = "Desapariciones Forzadas") +
   scale_fill_manual(values = c("Observado" = "#2F2F2F",
-                               "Rango y valor medio de imputación JEP-CEV-HRDAG" = '#63aee3')) +
+                                "Rango y valor medio de imputación JEP-CEV-HRDAG" = '#63aee3')) +
   scale_color_manual(values = c("Imputado por donante" = "red")) +
   scale_shape_manual(values = c("Imputado por donante" = 21)) +
   guides(shape = guide_legend(override.aes = list(size = 2)),
@@ -279,8 +283,8 @@ plot_homi_perp_imp <- ggplot(tabla_combinada_homicidio,
              size = 1, stroke = 1.1) +
   geom_point(aes(y = imp_donante, color = "Imputado por donante", shape = "Imputado por donante"), 
              fill = "red", size = 1, stroke = 1.1, show.legend = TRUE) +
-  scale_y_continuous(labels = function(n){format(n, scientific = FALSE)}) +
-	scale_y_continuous(breaks = seq(0, max(tabla_combinada_homicidio$imp_hi,
+  scale_y_continuous(labels = function(n){format(n, scientific = FALSE)},
+  									 breaks = seq(0, max(tabla_combinada_homicidio$imp_hi,
 																				 na.rm = TRUE), by = 20000)) +
   theme_minimal() +
   theme(legend.title = element_text(size = 6, face = "bold"),
@@ -338,8 +342,8 @@ plot_secue_perp_imp <- ggplot(tabla_combinada_secuestro,
              size = 1, stroke = 1.1) +
   geom_point(aes(y = imp_donante, color = "Imputado por donante", shape = "Imputado por donante"), 
              fill = "red", size = 1, stroke = 1.1, show.legend = TRUE) +
-  scale_y_continuous(labels = function(n){format(n, scientific = FALSE)}) +
-	scale_y_continuous(breaks = seq(0, max(tabla_combinada_secuestro$imp_hi,
+  scale_y_continuous(labels = function(n){format(n, scientific = FALSE)},
+  									 breaks = seq(0, max(tabla_combinada_secuestro$imp_hi,
 																				 na.rm = TRUE), by = 2500)) +
   theme_minimal() +
   theme(legend.title = element_text(size = 6, face = "bold"),
@@ -397,8 +401,8 @@ plot_reclu_perp_imp <- ggplot(tabla_combinada_reclutamiento,
              size = 1, stroke = 1.1) +
   geom_point(aes(y = imp_donante, color = "Imputado por donante", shape = "Imputado por donante"), 
              fill = "red", size = 1, stroke = 1.1, show.legend = TRUE) +
-  scale_y_continuous(labels = function(n){format(n, scientific = FALSE)}) +
-	scale_y_continuous(breaks = seq(0, max(tabla_combinada_reclutamiento$imp_hi,
+  scale_y_continuous(labels = function(n){format(n, scientific = FALSE)},
+  									 breaks = seq(0, max(tabla_combinada_reclutamiento$imp_hi,
 																				 na.rm = TRUE), by = 1000)) +
   theme_minimal() +
   theme(legend.title = element_text(size = 6, face = "bold"),

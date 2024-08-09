@@ -82,18 +82,35 @@ procesar_violencia <- function(data, tipo_violencia, start_year, end_year) {
 tipos_violencia <- c("desaparicion", "homicidio", "reclutamiento", "secuestro")
 
 # Periodos de años a procesar
-periodos <- list(
-  c(1996, 2000),
+periodos_generales <- list(
+  c(1998, 2000),
   c(2001, 2005),
   c(2006, 2010),
   c(2011, 2016)
 )
+
+# En homicidio son muy pesados los datos para el periodo de 2001-2005 por lo cual añado un periodo mas
+
+periodos_homi <- list(
+  c(1998, 2000),
+  c(2001, 2003),
+  c(2004, 2005),
+  c(2006, 2010),
+  c(2011, 2016)
+)
+
 
 # Lista para almacenar los resultados
 resultados <- list()
 
 # Procesar cada combinación de tipo de violencia y periodo de años
 for (tipo in tipos_violencia) {
+  if (tipo == "homicidio") {
+    periodos <- periodos_homi
+  } else {
+    periodos <- periodos_generales
+  }
+  
   for (periodo in periodos) {
     start_year <- periodo[1]
     end_year <- periodo[2]
@@ -103,22 +120,23 @@ for (tipo in tipos_violencia) {
 }
 
 # Acceder a los resultados
-result_desap_imp96_00 <- resultados[["desaparicion_1996_2000"]]
+result_desap_imp96_00 <- resultados[["desaparicion_1998_2000"]]
 result_desap_imp01_05 <- resultados[["desaparicion_2001_2005"]]
 result_desap_imp06_10 <- resultados[["desaparicion_2006_2010"]]
 result_desap_imp11_16 <- resultados[["desaparicion_2011_2016"]]
 
-result_homi_imp96_00 <- resultados[["homicidio_1996_2000"]]
-result_homi_imp01_05 <- resultados[["homicidio_2001_2005"]]
+result_homi_imp98_00 <- resultados[["homicidio_1998_2000"]]
+result_homi_imp01_03 <- resultados[["homicidio_2001_2003"]]
+result_homi_imp04_05 <- resultados[["homicidio_2004_2005"]]
 result_homi_imp06_10 <- resultados[["homicidio_2006_2010"]]
 result_homi_imp11_16 <- resultados[["homicidio_2011_2016"]]
 
-result_reclu_imp96_00 <- resultados[["reclutamiento_1996_2000"]]
+result_reclu_imp96_00 <- resultados[["reclutamiento_1998_2000"]]
 result_reclu_imp01_05 <- resultados[["reclutamiento_2001_2005"]]
 result_reclu_imp06_10 <- resultados[["reclutamiento_2006_2010"]]
 result_reclu_imp11_16 <- resultados[["reclutamiento_2011_2016"]]
 
-result_secue_imp96_00 <- resultados[["secuestro_1996_2000"]]
+result_secue_imp96_00 <- resultados[["secuestro_1998_2000"]]
 result_secue_imp01_05 <- resultados[["secuestro_2001_2005"]]
 result_secue_imp06_10 <- resultados[["secuestro_2006_2010"]]
 result_secue_imp11_16 <- resultados[["secuestro_2011_2016"]]

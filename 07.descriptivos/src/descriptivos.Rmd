@@ -18,7 +18,8 @@ editor_options:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-pacman::p_load(tidyverse, dplyr, ggplot2, data.table, scales, gridExtra)
+pacman::p_load(tidyverse, dplyr, ggplot2, data.table, scales, gridExtra, knitr,
+							 kableExtra)
 ```
 
 Importar datos: 
@@ -42,7 +43,7 @@ Conteos de número de observaciones por variable de interés en la imputación:
 plot_bar <- function(dataframe, variable, titulo) {
   # Agrupar, resumir y ordenar los datos
   summary_data <- dataframe %>%
-  	filter(yy_hecho >= 1996) %>%
+  	filter(yy_hecho >= 1998) %>%
     group_by(.data[[variable]]) %>%
     summarise(n_vic = n(), .groups = 'drop') %>%
     arrange(desc(n_vic))
@@ -75,4 +76,207 @@ ggsave(paste0(output_dir,"/plot_count_vars.jpg"), plot_count_vars,
 							width = 14, height = 10, units = "in")
 
 ```
+Calcular porcentaje de los datos con los que se cuenta:
+
+Edad:
+
+```{r}
+tabla <- table(violencias_unidas_aux$edad_jep, violencias_unidas_aux$violencia, useNA = "always")
+
+porcentaje_columnas <- prop.table(tabla, 2) * 100
+
+tabla_formateada <- round(porcentaje_columnas, 2) %>%
+  kable(format = "html", caption = "Porcentaje de datos por edad y violación") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), 
+                full_width = F, 
+                position = "center")
+
+print(tabla_formateada)
+```
+Perpetrador:
+
+```{r}
+tabla <- table(violencias_unidas_aux$p_str, violencias_unidas_aux$violencia, useNA = "always")
+
+porcentaje_columnas <- prop.table(tabla, 2) * 100
+
+tabla_formateada <- round(porcentaje_columnas, 2) %>%
+  kable(format = "html", caption = "Porcentaje de datos por perpetrador y violación") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), 
+                full_width = F, 
+                position = "center")
+
+print(tabla_formateada)
+```
+Etnia:
+
+```{r}
+tabla <- table(violencias_unidas_aux$etnia, violencias_unidas_aux$violencia, useNA = "always")
+
+porcentaje_columnas <- prop.table(tabla, 2) * 100
+
+tabla_formateada <- round(porcentaje_columnas, 2) %>%
+  kable(format = "html", caption = "Porcentaje de datos por etnia y violación") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), 
+                full_width = F, 
+                position = "center")
+
+print(tabla_formateada)
+```
+
+Sexo:
+
+```{r}
+tabla <- table(violencias_unidas_aux$sexo, violencias_unidas_aux$violencia, useNA = "always")
+
+porcentaje_columnas <- prop.table(tabla, 2) * 100
+
+tabla_formateada <- round(porcentaje_columnas, 2) %>%
+  kable(format = "html", caption = "Porcentaje de datos por sexo y violación") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), 
+                full_width = F, 
+                position = "center")
+
+print(tabla_formateada)
+```
+Violencia, etnia y año: 
+
+Mestizos:
+```{r}
+NARP <- violencias_unidas_aux %>%
+  filter(etnia == "MESTIZO")
+
+tabla_NARP <- table(NARP$yy_hecho, NARP$violencia)
+porcentaje_columnas_NARP <- prop.table(tabla_NARP, 2) * 100
+
+df_porcentaje_NARP <- as.data.frame(porcentaje_columnas_NARP) %>%
+  rename(Año = Var1, Violencia = Var2, Porcentaje = Freq)
+
+df_porcentaje_NARP$Año <- as.numeric(as.character(df_porcentaje_NARP$Año))
+
+plot_docu_NARP_year <- ggplot(df_porcentaje_NARP, aes(x = Año, y = Porcentaje, color = Violencia, group = Violencia)) +
+  geom_line(size = 1) +  
+  geom_point(size = 2) +  
+  labs(title = "Porcentaje de víctimas NARP documentadas", 
+       x = "Año", 
+       y = "Porcentaje (%)") +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set1", name = NULL) +  
+  scale_x_continuous(breaks = seq(min(df_porcentaje_NARP$Año, na.rm = TRUE), 
+                                  max(df_porcentaje_NARP$Año, na.rm = TRUE), 
+                                  by = 2)) +
+  scale_y_continuous(breaks = seq(0, max(df_porcentaje_NARP$Porcentaje, na.rm = TRUE), by = 2)) +
+  theme(legend.position = "bottom", legend.text = element_text(size = 12)) 
+
+plot_docu_NARP_year
+
+ggsave(paste0(output_dir,"/plot_docu_NARP_year.jpg"), plot_docu_NARP_year,
+							width = 7, height = 7, units = "in")
+
+```
+
+NARP:
+```{r}
+NARP <- violencias_unidas_aux %>%
+  filter(etnia == "NARP")
+
+tabla_NARP <- table(NARP$yy_hecho, NARP$violencia)
+porcentaje_columnas_NARP <- prop.table(tabla_NARP, 2) * 100
+
+df_porcentaje_NARP <- as.data.frame(porcentaje_columnas_NARP) %>%
+  rename(Año = Var1, Violencia = Var2, Porcentaje = Freq)
+
+df_porcentaje_NARP$Año <- as.numeric(as.character(df_porcentaje_NARP$Año))
+
+plot_docu_NARP_year <- ggplot(df_porcentaje_NARP, aes(x = Año, y = Porcentaje, color = Violencia, group = Violencia)) +
+  geom_line(size = 1) +  
+  geom_point(size = 2) +  
+  labs(title = "Porcentaje de víctimas NARP documentadas", 
+       x = "Año", 
+       y = "Porcentaje (%)") +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set1", name = NULL) +  
+  scale_x_continuous(breaks = seq(min(df_porcentaje_NARP$Año, na.rm = TRUE), 
+                                  max(df_porcentaje_NARP$Año, na.rm = TRUE), 
+                                  by = 2)) +
+  scale_y_continuous(breaks = seq(0, max(df_porcentaje_NARP$Porcentaje, na.rm = TRUE), by = 2)) +
+  theme(legend.position = "bottom", legend.text = element_text(size = 12)) 
+
+plot_docu_NARP_year
+
+ggsave(paste0(output_dir,"/plot_docu_NARP_year.jpg"), plot_docu_NARP_year,
+							width = 7, height = 7, units = "in")
+
+```
+
+Indígenas:
+
+```{r}
+indigenas <- violencias_unidas_aux %>%
+  filter(etnia == "INDIGENA")
+
+tabla_indigenas <- table(indigenas$yy_hecho, indigenas$violencia)
+porcentaje_columnas_indigenas <- prop.table(tabla_indigenas, 2) * 100
+
+df_porcentaje_indigenas <- as.data.frame(porcentaje_columnas_indigenas) %>%
+  rename(Año = Var1, Violencia = Var2, Porcentaje = Freq)
+
+df_porcentaje_indigenas$Año <- as.numeric(as.character(df_porcentaje_indigenas$Año))
+
+plot_docu_indigenas_year <- ggplot(df_porcentaje_indigenas, aes(x = Año, y = Porcentaje, color = Violencia, group = Violencia)) +
+  geom_line(size = 1) +  
+  geom_point(size = 2) +  
+  labs(title = "Porcentaje de víctimas indígenas documentadas", 
+       x = "Año", 
+       y = "Porcentaje (%)") +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set1", name = NULL) +  
+  scale_x_continuous(breaks = seq(min(df_porcentaje_indigenas$Año, na.rm = TRUE), 
+                                  max(df_porcentaje_indigenas$Año, na.rm = TRUE), 
+                                  by = 2)) +
+  scale_y_continuous(breaks = seq(0, max(df_porcentaje_indigenas$Porcentaje, na.rm = TRUE), by = 2)) +
+  theme(legend.position = "bottom", legend.text = element_text(size = 12)) 
+
+plot_docu_indigenas_year
+
+ggsave(paste0(output_dir,"/plot_docu_indigenas_year.jpg"), plot_docu_indigenas_year,
+							width = 7, height = 7, units = "in")
+
+```
+
+Rrom: 
+
+```{r}
+rrom <- violencias_unidas_aux %>%
+  filter(etnia == "ROM")
+
+tabla_rrom <- table(rrom$yy_hecho, rrom$violencia)
+porcentaje_columnas_rrom <- prop.table(tabla_rrom, 2) * 100
+
+df_porcentaje_rrom <- as.data.frame(porcentaje_columnas_rrom) %>%
+  rename(Año = Var1, Violencia = Var2, Porcentaje = Freq)
+
+df_porcentaje_rrom$Año <- as.numeric(as.character(df_porcentaje_rrom$Año))
+
+plot_docu_rrom_year <- ggplot(df_porcentaje_rrom, aes(x = Año, y = Porcentaje, color = Violencia, group = Violencia)) +
+  geom_line(size = 1) +  
+  geom_point(size = 2) +  
+  labs(title = "Porcentaje de víctimas Rrom documentadas", 
+       x = "Año", 
+       y = "Porcentaje (%)") +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set1", name = NULL) +  
+  scale_x_continuous(breaks = seq(min(df_porcentaje_rrom$Año, na.rm = TRUE), 
+                                  max(df_porcentaje_rrom$Año, na.rm = TRUE), 
+                                  by = 2)) +
+  scale_y_continuous(breaks = seq(0, max(df_porcentaje_rrom$Porcentaje, na.rm = TRUE), by = 2)) +
+  theme(legend.position = "bottom", legend.text = element_text(size = 12)) 
+
+plot_docu_rrom_year
+
+ggsave(paste0(output_dir,"/plot_docu_rrom_year.jpg"), plot_docu_rrom_year,
+							width = 7, height = 7, units = "in")
+
+```
+
 

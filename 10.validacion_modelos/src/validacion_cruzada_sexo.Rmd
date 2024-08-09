@@ -59,7 +59,7 @@ table(complete_violencias_unidas_aux$violencia, complete_violencias_unidas_aux$g
 
 ```
 
-Genero valores NA's para un grupo de cada violencia y dejo los otros 3 grupos como parte del entrenamiento: 
+Genero valores NA's para un grupo de cada violencia y dejo los otros 4 grupos como parte del entrenamiento: 
 
 ```{r}
 violencias_artificial_nas_1 <- complete_violencias_unidas_aux %>%
@@ -118,7 +118,7 @@ complete_secuestro <- complete_violencias_unidas_aux %>%
 ```
 
 
-Se imputa por Donante por periodos de tiempo (usando la misma imputación que 07.modelos_imputacion). Se hace para cada grupo como test y el resto como training:
+Se imputa por Donante por periodos de tiempo (usando la misma imputación que 08.modelos_imputacion). Se hace para cada grupo como test y el resto como training:
 
 ```{r}
 # Función para el procesamiento de distintos tipos de violencia en un rango de años
@@ -167,7 +167,7 @@ tipos_violencia <- c("desaparicion", "homicidio", "reclutamiento", "secuestro")
 
 # Periodos de años a procesar
 periodos <- list(
-  c(1996, 2000),
+  c(1998, 2000),
   c(2001, 2005),
   c(2006, 2010),
   c(2011, 2016)
@@ -192,19 +192,19 @@ for (tipo in tipos_violencia) {
   }
 }
 
-artif_donante_sexo_desap1 <- rbind(resultados1[["desaparicion_1996_2000"]], 
+artif_donante_sexo_desap1 <- rbind(resultados1[["desaparicion_1998_2000"]], 
 			resultados1[["desaparicion_2001_2005"]],
 			resultados1[["desaparicion_2006_2010"]],
 			resultados1[["desaparicion_2011_2016"]]) 
-artif_donante_sexo_homi1 <- rbind(resultados1[["homicidio_1996_2000"]], 
+artif_donante_sexo_homi1 <- rbind(resultados1[["homicidio_1998_2000"]], 
 			resultados1[["homicidio_2001_2005"]],
 			resultados1[["homicidio_2006_2010"]],
 			resultados1[["homicidio_2011_2016"]])
-artif_donante_sexo_secue1 <- rbind(resultados1[["secuestro_1996_2000"]], 
+artif_donante_sexo_secue1 <- rbind(resultados1[["secuestro_1998_2000"]], 
 			resultados1[["secuestro_2001_2005"]],
 			resultados1[["secuestro_2006_2010"]],
 			resultados1[["secuestro_2011_2016"]])
-artif_donante_sexo_reclu1 <- rbind(resultados1[["reclutamiento_1996_2000"]], 
+artif_donante_sexo_reclu1 <- rbind(resultados1[["reclutamiento_1998_2000"]], 
 			resultados1[["reclutamiento_2001_2005"]],
 			resultados1[["reclutamiento_2006_2010"]],
 			resultados1[["reclutamiento_2011_2016"]])
@@ -219,19 +219,19 @@ for (tipo in tipos_violencia) {
   }
 }
 
-artif_donante_sexo_desap2 <- rbind(resultados2[["desaparicion_1996_2000"]], 
+artif_donante_sexo_desap2 <- rbind(resultados2[["desaparicion_1998_2000"]], 
 			resultados2[["desaparicion_2001_2005"]],
 			resultados2[["desaparicion_2006_2010"]],
 			resultados2[["desaparicion_2011_2016"]])
-artif_donante_sexo_homi2 <- rbind(resultados2[["homicidio_1996_2000"]], 
+artif_donante_sexo_homi2 <- rbind(resultados2[["homicidio_1998_2000"]], 
 			resultados2[["homicidio_2001_2005"]],
 			resultados2[["homicidio_2006_2010"]],
 			resultados2[["homicidio_2011_2016"]])
-artif_donante_sexo_secue2 <- rbind(resultados2[["secuestro_1996_2000"]], 
+artif_donante_sexo_secue2 <- rbind(resultados2[["secuestro_1998_2000"]], 
 			resultados2[["secuestro_2001_2005"]],
 			resultados2[["secuestro_2006_2010"]],
 			resultados2[["secuestro_2011_2016"]])
-artif_donante_sexo_reclu2 <- rbind(resultados2[["reclutamiento_1996_2000"]], 
+artif_donante_sexo_reclu2 <- rbind(resultados2[["reclutamiento_1998_2000"]], 
 			resultados2[["reclutamiento_2001_2005"]],
 			resultados2[["reclutamiento_2006_2010"]],
 			resultados2[["reclutamiento_2011_2016"]])
@@ -247,19 +247,19 @@ for (tipo in tipos_violencia) {
   }
 }
 
-artif_donante_sexo_desap3 <- rbind(resultados3[["desaparicion_1996_2000"]], 
+artif_donante_sexo_desap3 <- rbind(resultados3[["desaparicion_1998_2000"]], 
 			resultados3[["desaparicion_2001_2005"]],
 			resultados3[["desaparicion_2006_2010"]],
 			resultados3[["desaparicion_2011_2016"]])
-artif_donante_sexo_homi3 <- rbind(resultados3[["homicidio_1996_2000"]], 
+artif_donante_sexo_homi3 <- rbind(resultados3[["homicidio_1998_2000"]], 
 			resultados3[["homicidio_2001_2005"]],
 			resultados3[["homicidio_2006_2010"]],
 			resultados3[["homicidio_2011_2016"]])
-artif_donante_sexo_secue3 <- rbind(resultados3[["secuestro_1996_2000"]], 
+artif_donante_sexo_secue3 <- rbind(resultados3[["secuestro_1998_2000"]], 
 			resultados3[["secuestro_2001_2005"]],
 			resultados3[["secuestro_2006_2010"]],
 			resultados3[["secuestro_2011_2016"]])
-artif_donante_sexo_reclu3 <- rbind(resultados3[["reclutamiento_1996_2000"]], 
+artif_donante_sexo_reclu3 <- rbind(resultados3[["reclutamiento_1998_2000"]], 
 			resultados3[["reclutamiento_2001_2005"]],
 			resultados3[["reclutamiento_2006_2010"]],
 			resultados3[["reclutamiento_2011_2016"]])
@@ -274,19 +274,19 @@ for (tipo in tipos_violencia) {
   }
 }
 
-artif_donante_sexo_desap4 <- rbind(resultados4[["desaparicion_1996_2000"]], 
+artif_donante_sexo_desap4 <- rbind(resultados4[["desaparicion_1998_2000"]], 
 			resultados4[["desaparicion_2001_2005"]],
 			resultados4[["desaparicion_2006_2010"]],
 			resultados4[["desaparicion_2011_2016"]])
-artif_donante_sexo_homi4 <- rbind(resultados4[["homicidio_1996_2000"]], 
+artif_donante_sexo_homi4 <- rbind(resultados4[["homicidio_1998_2000"]], 
 			resultados4[["homicidio_2001_2005"]],
 			resultados4[["homicidio_2006_2010"]],
 			resultados4[["homicidio_2011_2016"]])
-artif_donante_sexo_secue4 <- rbind(resultados4[["secuestro_1996_2000"]], 
+artif_donante_sexo_secue4 <- rbind(resultados4[["secuestro_1998_2000"]], 
 			resultados4[["secuestro_2001_2005"]],
 			resultados4[["secuestro_2006_2010"]],
 			resultados4[["secuestro_2011_2016"]])
-artif_donante_sexo_reclu4 <- rbind(resultados4[["reclutamiento_1996_2000"]], 
+artif_donante_sexo_reclu4 <- rbind(resultados4[["reclutamiento_1998_2000"]], 
 			resultados4[["reclutamiento_2001_2005"]],
 			resultados4[["reclutamiento_2006_2010"]],
 			resultados4[["reclutamiento_2011_2016"]])
@@ -301,19 +301,19 @@ for (tipo in tipos_violencia) {
   }
 }
 
-artif_donante_sexo_desap5 <- rbind(resultados5[["desaparicion_1996_2000"]], 
+artif_donante_sexo_desap5 <- rbind(resultados5[["desaparicion_1998_2000"]], 
 			resultados5[["desaparicion_2001_2005"]],
 			resultados5[["desaparicion_2006_2010"]],
 			resultados5[["desaparicion_2011_2016"]])
-artif_donante_sexo_homi5 <- rbind(resultados5[["homicidio_1996_2000"]], 
+artif_donante_sexo_homi5 <- rbind(resultados5[["homicidio_1998_2000"]], 
 			resultados5[["homicidio_2001_2005"]],
 			resultados5[["homicidio_2006_2010"]],
 			resultados5[["homicidio_2011_2016"]])
-artif_donante_sexo_secue5 <- rbind(resultados5[["secuestro_1996_2000"]], 
+artif_donante_sexo_secue5 <- rbind(resultados5[["secuestro_1998_2000"]], 
 			resultados5[["secuestro_2001_2005"]],
 			resultados5[["secuestro_2006_2010"]],
 			resultados5[["secuestro_2011_2016"]])
-artif_donante_sexo_reclu5 <- rbind(resultados5[["reclutamiento_1996_2000"]], 
+artif_donante_sexo_reclu5 <- rbind(resultados5[["reclutamiento_1998_2000"]], 
 			resultados5[["reclutamiento_2001_2005"]],
 			resultados5[["reclutamiento_2006_2010"]],
 			resultados5[["reclutamiento_2011_2016"]])
@@ -393,7 +393,7 @@ tipos_violencia <- c("desaparicion", "homicidio", "reclutamiento", "secuestro")
 
 # Periodos de años a procesar
 periodos <- list(
-  c(1996, 2016)
+  c(1998, 2016)
 )
 
 # Lista para almacenar los resultados
@@ -414,10 +414,10 @@ for (tipo in tipos_violencia) {
     resultados1[[paste(tipo, start_year, end_year, sep = "_")]] <- result1
   }
 }
-artif_regresion_sexo_desap1 <- resultados1[["desaparicion_1996_2016"]]
-artif_regresion_sexo_homi1 <- resultados1[["homicidio_1996_2016"]]
-artif_regresion_sexo_reclu1 <- resultados1[["reclutamiento_1996_2016"]]
-artif_regresion_sexo_secue1 <- resultados1[["secuestro_1996_2016"]]
+artif_regresion_sexo_desap1 <- resultados1[["desaparicion_1998_2016"]]
+artif_regresion_sexo_homi1 <- resultados1[["homicidio_1998_2016"]]
+artif_regresion_sexo_reclu1 <- resultados1[["reclutamiento_1998_2016"]]
+artif_regresion_sexo_secue1 <- resultados1[["secuestro_1998_2016"]]
 
 # Grupo 2
 for (tipo in tipos_violencia) {
@@ -428,10 +428,10 @@ for (tipo in tipos_violencia) {
     resultados2[[paste(tipo, start_year, end_year, sep = "_")]] <- result2
   }
 }
-artif_regresion_sexo_desap2 <- resultados2[["desaparicion_1996_2016"]]
-artif_regresion_sexo_homi2 <- resultados2[["homicidio_1996_2016"]]
-artif_regresion_sexo_reclu2 <- resultados2[["reclutamiento_1996_2016"]]
-artif_regresion_sexo_secue2 <- resultados2[["secuestro_1996_2016"]]
+artif_regresion_sexo_desap2 <- resultados2[["desaparicion_1998_2016"]]
+artif_regresion_sexo_homi2 <- resultados2[["homicidio_1998_2016"]]
+artif_regresion_sexo_reclu2 <- resultados2[["reclutamiento_1998_2016"]]
+artif_regresion_sexo_secue2 <- resultados2[["secuestro_1998_2016"]]
 
 # Grupo 3
 for (tipo in tipos_violencia) {
@@ -442,10 +442,10 @@ for (tipo in tipos_violencia) {
     resultados3[[paste(tipo, start_year, end_year, sep = "_")]] <- result3
   }
 }
-artif_regresion_sexo_desap3 <- resultados3[["desaparicion_1996_2016"]]
-artif_regresion_sexo_homi3 <- resultados3[["homicidio_1996_2016"]]
-artif_regresion_sexo_reclu3 <- resultados3[["reclutamiento_1996_2016"]]
-artif_regresion_sexo_secue3 <- resultados3[["secuestro_1996_2016"]]
+artif_regresion_sexo_desap3 <- resultados3[["desaparicion_1998_2016"]]
+artif_regresion_sexo_homi3 <- resultados3[["homicidio_1998_2016"]]
+artif_regresion_sexo_reclu3 <- resultados3[["reclutamiento_1998_2016"]]
+artif_regresion_sexo_secue3 <- resultados3[["secuestro_1998_2016"]]
 
 # Grupo 4
 for (tipo in tipos_violencia) {
@@ -456,10 +456,10 @@ for (tipo in tipos_violencia) {
     resultados4[[paste(tipo, start_year, end_year, sep = "_")]] <- result4
   }
 }
-artif_regresion_sexo_desap4 <- resultados4[["desaparicion_1996_2016"]]
-artif_regresion_sexo_homi4 <- resultados4[["homicidio_1996_2016"]]
-artif_regresion_sexo_reclu4 <- resultados4[["reclutamiento_1996_2016"]]
-artif_regresion_sexo_secue4 <- resultados4[["secuestro_1996_2016"]]
+artif_regresion_sexo_desap4 <- resultados4[["desaparicion_1998_2016"]]
+artif_regresion_sexo_homi4 <- resultados4[["homicidio_1998_2016"]]
+artif_regresion_sexo_reclu4 <- resultados4[["reclutamiento_1998_2016"]]
+artif_regresion_sexo_secue4 <- resultados4[["secuestro_1998_2016"]]
 
 # Grupo 5
 for (tipo in tipos_violencia) {
@@ -470,10 +470,10 @@ for (tipo in tipos_violencia) {
     resultados5[[paste(tipo, start_year, end_year, sep = "_")]] <- result5
   }
 }
-artif_regresion_sexo_desap5 <- resultados5[["desaparicion_1996_2016"]]
-artif_regresion_sexo_homi5 <- resultados5[["homicidio_1996_2016"]]
-artif_regresion_sexo_reclu5 <- resultados5[["reclutamiento_1996_2016"]]
-artif_regresion_sexo_secue5 <- resultados5[["secuestro_1996_2016"]]
+artif_regresion_sexo_desap5 <- resultados5[["desaparicion_1998_2016"]]
+artif_regresion_sexo_homi5 <- resultados5[["homicidio_1998_2016"]]
+artif_regresion_sexo_reclu5 <- resultados5[["reclutamiento_1998_2016"]]
+artif_regresion_sexo_secue5 <- resultados5[["secuestro_1998_2016"]]
 
 
 ```

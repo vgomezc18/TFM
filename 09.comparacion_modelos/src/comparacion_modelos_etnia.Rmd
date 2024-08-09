@@ -81,22 +81,23 @@ tabla_documentada_reclutamiento <- resumir_tabla_documentada("reclutamiento", re
 Inserto los resultados por donante: 
 
 ```{r}
-donante_etnia_desap <- rbind(imputacion_donante_etnia[["desaparicion_1996_2000"]], 
+donante_etnia_desap <- rbind(imputacion_donante_etnia[["desaparicion_1998_2000"]], 
 			imputacion_donante_etnia[["desaparicion_2001_2005"]],
 			imputacion_donante_etnia[["desaparicion_2006_2010"]],
 			imputacion_donante_etnia[["desaparicion_2011_2016"]])
 
-donante_etnia_homi <- rbind(imputacion_donante_etnia[["homicidio_1996_2000"]], 
-			imputacion_donante_etnia[["homicidio_2001_2005"]],
+donante_etnia_homi <- rbind(imputacion_donante_etnia[["homicidio_1998_2000"]], 
+			imputacion_donante_etnia[["homicidio_2001_2003"]],
+			imputacion_donante_etnia[["homicidio_2004_2005"]],
 			imputacion_donante_etnia[["homicidio_2006_2010"]],
 			imputacion_donante_etnia[["homicidio_2011_2016"]])
 
-donante_etnia_secue <- rbind(imputacion_donante_etnia[["secuestro_1996_2000"]], 
+donante_etnia_secue <- rbind(imputacion_donante_etnia[["secuestro_1998_2000"]], 
 			imputacion_donante_etnia[["secuestro_2001_2005"]],
 			imputacion_donante_etnia[["secuestro_2006_2010"]],
 			imputacion_donante_etnia[["secuestro_2011_2016"]])
 
-donante_etnia_reclu <- rbind(imputacion_donante_etnia[["reclutamiento_1996_2000"]], 
+donante_etnia_reclu <- rbind(imputacion_donante_etnia[["reclutamiento_1998_2000"]], 
 			imputacion_donante_etnia[["reclutamiento_2001_2005"]],
 			imputacion_donante_etnia[["reclutamiento_2006_2010"]],
 			imputacion_donante_etnia[["reclutamiento_2011_2016"]])
@@ -170,13 +171,13 @@ tabla_combinada_reclutamiento <- tabla_combinada_reclutamiento %>%
 ```{r}
 mestizos_proyecto_desap <- tabla_combinada_desaparicion %>%
 	  filter(etnia == "MESTIZO",
-	  			 yy_hecho >= 1993) %>%
+	  			 yy_hecho >= 1998) %>%
     mutate(observed = as.numeric(observed)) %>% 
     arrange((yy_hecho))
 
 plot_desap_mestizos_year_imp <- mestizos_proyecto_desap %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-	  filter(yy_hecho >= 1996) %>%
+	  filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -204,7 +205,7 @@ plot_desap_mestizos_year_imp <- mestizos_proyecto_desap %>%
 plot_desap_mestizos_year_imp
 
 ggsave(paste0(output_dir,"/etnia/plot_desap_mestizos_year_imp.jpg"),
-			 plot_desap_mestizos_year_imp)
+			 plot_desap_mestizos_year_imp, width = 7, height = 7)
 ```
 ## Comparación de resultados indígenas
 
@@ -212,14 +213,14 @@ ggsave(paste0(output_dir,"/etnia/plot_desap_mestizos_year_imp.jpg"),
 
 indigenas_proyecto_desap <- tabla_combinada_desaparicion %>%
 	  filter(etnia == "INDIGENA",
-	  			 yy_hecho >= 1993) %>%
+	  			 yy_hecho >= 1998) %>%
     mutate(observed = as.numeric(observed)) %>% 
     arrange((yy_hecho))
 
 
 plot_desap_indigenas_year_imp <- indigenas_proyecto_desap %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-   filter(yy_hecho >= 1996) %>%
+   filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -247,7 +248,7 @@ plot_desap_indigenas_year_imp <- indigenas_proyecto_desap %>%
 plot_desap_indigenas_year_imp
 
 ggsave(paste0(output_dir,"/etnia/plot_desap_indigenas_year_imp.jpg"),
-			 plot_desap_indigenas_year_imp)
+			 plot_desap_indigenas_year_imp, width = 7, height = 7)
 
 ```
 ## Comparación de resultados NARP
@@ -256,14 +257,14 @@ ggsave(paste0(output_dir,"/etnia/plot_desap_indigenas_year_imp.jpg"),
 
 narp_proyecto_desap <- tabla_combinada_desaparicion %>%
 	  filter(etnia == "NARP",
-	  			 yy_hecho >= 1993) %>%
+	  			 yy_hecho >= 1998) %>%
     mutate(observed = as.numeric(observed)) %>% 
     arrange((yy_hecho))
 
 
 plot_desap_narp_year_imp <- narp_proyecto_desap %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>%
-	 filter(yy_hecho >= 1996) %>%
+	 filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -291,7 +292,7 @@ plot_desap_narp_year_imp <- narp_proyecto_desap %>%
 plot_desap_narp_year_imp
 
 ggsave(paste0(output_dir,"/etnia/plot_desap_narp_year_imp.jpg"),
-			 plot_desap_narp_year_imp)
+			 plot_desap_narp_year_imp, width = 7, height = 7)
 
 ```
 
@@ -301,14 +302,14 @@ ggsave(paste0(output_dir,"/etnia/plot_desap_narp_year_imp.jpg"),
 
 rrom_proyecto_desap <- tabla_combinada_desaparicion %>%
 	  filter(etnia == "ROM",
-	  			 yy_hecho >= 1993) %>%
+	  			 yy_hecho >= 1998) %>%
     mutate(observed = as.numeric(observed)) %>% 
     arrange((yy_hecho))
 
 
 plot_desap_rrom_year_imp <- rrom_proyecto_desap %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-  	filter(yy_hecho >= 1996) %>%
+  	filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -337,7 +338,7 @@ plot_desap_rrom_year_imp <- rrom_proyecto_desap %>%
 plot_desap_rrom_year_imp
 
 ggsave(paste0(output_dir,"/etnia/plot_desap_rrom_year_imp.jpg"),
-			 plot_desap_rrom_year_imp)
+			 plot_desap_rrom_year_imp, width = 7, height = 7)
 
 ```
 
@@ -349,13 +350,13 @@ ggsave(paste0(output_dir,"/etnia/plot_desap_rrom_year_imp.jpg"),
 
 mestizos_proyecto_homi <- tabla_combinada_homicidio %>%
 	  filter(etnia == "MESTIZO",
-	  			 yy_hecho >= 1993) %>%
+	  			 yy_hecho >= 1998) %>%
     mutate(observed = as.numeric(observed)) %>% 
     arrange((yy_hecho))
 
 plot_homi_mestizos_year_imp <- mestizos_proyecto_homi %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-	  filter(yy_hecho >= 1996) %>%
+	  filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -383,7 +384,7 @@ plot_homi_mestizos_year_imp <- mestizos_proyecto_homi %>%
 plot_homi_mestizos_year_imp
 
 ggsave(paste0(output_dir,"/etnia/plot_homi_mestizos_year_imp.jpg"),
-			 plot_homi_mestizos_year_imp)
+			 plot_homi_mestizos_year_imp, width = 7, height = 7)
 ```
 # Comparación de resultados indígenas
 
@@ -391,14 +392,14 @@ ggsave(paste0(output_dir,"/etnia/plot_homi_mestizos_year_imp.jpg"),
 
 indigenas_proyecto_homi <- tabla_combinada_homicidio %>%
 	  filter(etnia == "INDIGENA",
-	  			 yy_hecho >= 1993) %>%
+	  			 yy_hecho >= 1998) %>%
     mutate(observed = as.numeric(observed)) %>% 
     arrange((yy_hecho))
 
 
 plot_homi_indigenas_year_imp <- indigenas_proyecto_homi %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-   filter(yy_hecho >= 1996) %>%
+   filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -426,7 +427,7 @@ plot_homi_indigenas_year_imp <- indigenas_proyecto_homi %>%
 plot_homi_indigenas_year_imp
 
 ggsave(paste0(output_dir,"/etnia/plot_homi_indigenas_year_imp.jpg"),
-			 plot_homi_indigenas_year_imp)
+			 plot_homi_indigenas_year_imp, width = 7, height = 7)
 
 ```
 # Comparación de resultados NARP
@@ -435,14 +436,14 @@ ggsave(paste0(output_dir,"/etnia/plot_homi_indigenas_year_imp.jpg"),
 
 narp_proyecto_homi <- tabla_combinada_homicidio %>%
 	  filter(etnia == "NARP",
-	  			 yy_hecho >= 1993) %>%
+	  			 yy_hecho >= 1998) %>%
     mutate(observed = as.numeric(observed)) %>% 
     arrange((yy_hecho))
 
 
 plot_homi_narp_year_imp <- narp_proyecto_homi %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>%
-	 filter(yy_hecho >= 1996) %>%
+	 filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -470,7 +471,7 @@ plot_homi_narp_year_imp <- narp_proyecto_homi %>%
 plot_homi_narp_year_imp
 
 ggsave(paste0(output_dir,"/etnia/plot_homi_narp_year_imp.jpg"),
-			 plot_homi_narp_year_imp)
+			 plot_homi_narp_year_imp, width = 7, height = 7)
 
 ```
 
@@ -480,14 +481,14 @@ ggsave(paste0(output_dir,"/etnia/plot_homi_narp_year_imp.jpg"),
 
 rrom_proyecto_homi <- tabla_combinada_homicidio %>%
 	  filter(etnia == "ROM",
-	  			 yy_hecho >= 1993) %>%
+	  			 yy_hecho >= 1998) %>%
     mutate(observed = as.numeric(observed)) %>% 
     arrange((yy_hecho))
 
 
 plot_homi_rrom_year_imp <- rrom_proyecto_homi %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-  	filter(yy_hecho >= 1996) %>%
+  	filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -516,7 +517,7 @@ plot_homi_rrom_year_imp <- rrom_proyecto_homi %>%
 plot_homi_rrom_year_imp
 
 ggsave(paste0(output_dir,"/etnia/plot_homi_rrom_year_imp.jpg"),
-			 plot_homi_rrom_year_imp)
+			 plot_homi_rrom_year_imp, width = 7, height = 7)
 
 ```
 # Secuestro - Etnia
@@ -526,13 +527,13 @@ ggsave(paste0(output_dir,"/etnia/plot_homi_rrom_year_imp.jpg"),
 ```{r}
 mestizos_proyecto_secue <- tabla_combinada_secuestro %>%
 	  filter(etnia == "MESTIZO",
-	  			 yy_hecho >= 1993) %>%
+	  			 yy_hecho >= 1998) %>%
     mutate(observed = as.numeric(observed)) %>% 
     arrange((yy_hecho))
 
 plot_secue_mestizos_year_imp <- mestizos_proyecto_secue %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-	  filter(yy_hecho >= 1996) %>%
+	  filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -560,7 +561,7 @@ plot_secue_mestizos_year_imp <- mestizos_proyecto_secue %>%
 plot_secue_mestizos_year_imp
 
 ggsave(paste0(output_dir,"/etnia/plot_secue_mestizos_year_imp.jpg"),
-			 plot_secue_mestizos_year_imp)
+			 plot_secue_mestizos_year_imp, width = 7, height = 7)
 ```
 ## Comparación de resultados indígenas
 
@@ -568,14 +569,14 @@ ggsave(paste0(output_dir,"/etnia/plot_secue_mestizos_year_imp.jpg"),
 
 indigenas_proyecto_secue <- tabla_combinada_secuestro %>%
 	  filter(etnia == "INDIGENA",
-	  			 yy_hecho >= 1993) %>%
+	  			 yy_hecho >= 1998) %>%
     mutate(observed = as.numeric(observed)) %>% 
     arrange((yy_hecho))
 
 
 plot_secue_indigenas_year_imp <- indigenas_proyecto_secue %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-   filter(yy_hecho >= 1996) %>%
+   filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -603,7 +604,7 @@ plot_secue_indigenas_year_imp <- indigenas_proyecto_secue %>%
 plot_secue_indigenas_year_imp
 
 ggsave(paste0(output_dir,"/etnia/plot_secue_indigenas_year_imp.jpg"),
-			 plot_secue_indigenas_year_imp)
+			 plot_secue_indigenas_year_imp, width = 7, height = 7)
 
 ```
 ## Comparación de resultados NARP
@@ -612,14 +613,14 @@ ggsave(paste0(output_dir,"/etnia/plot_secue_indigenas_year_imp.jpg"),
 
 narp_proyecto_secue <- tabla_combinada_secuestro %>%
 	  filter(etnia == "NARP",
-	  			 yy_hecho >= 1993) %>%
+	  			 yy_hecho >= 1998) %>%
     mutate(observed = as.numeric(observed)) %>% 
     arrange((yy_hecho))
 
 
 plot_secue_narp_year_imp <- narp_proyecto_secue %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>%
-	 filter(yy_hecho >= 1996) %>%
+	 filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -647,7 +648,7 @@ plot_secue_narp_year_imp <- narp_proyecto_secue %>%
 plot_secue_narp_year_imp
 
 ggsave(paste0(output_dir,"/etnia/plot_secue_narp_year_imp.jpg"),
-			 plot_secue_narp_year_imp)
+			 plot_secue_narp_year_imp, width = 7, height = 7)
 
 ```
 
@@ -657,14 +658,14 @@ ggsave(paste0(output_dir,"/etnia/plot_secue_narp_year_imp.jpg"),
 
 rrom_proyecto_secue <- tabla_combinada_secuestro %>%
 	  filter(etnia == "ROM",
-	  			 yy_hecho >= 1993) %>%
+	  			 yy_hecho >= 1998) %>%
     mutate(observed = as.numeric(observed)) %>% 
     arrange((yy_hecho))
 
 
 plot_secue_rrom_year_imp <- rrom_proyecto_secue %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-  	filter(yy_hecho >= 1996) %>%
+  	filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -693,7 +694,7 @@ plot_secue_rrom_year_imp <- rrom_proyecto_secue %>%
 plot_secue_rrom_year_imp
 
 ggsave(paste0(output_dir,"/etnia/plot_secue_rrom_year_imp.jpg"),
-			 plot_secue_rrom_year_imp)
+			 plot_secue_rrom_year_imp, width = 7, height = 7)
 
 ```
 # Reclutamiento - Etnia
@@ -703,13 +704,13 @@ ggsave(paste0(output_dir,"/etnia/plot_secue_rrom_year_imp.jpg"),
 ```{r}
 mestizos_proyecto_reclu <- tabla_combinada_reclutamiento %>%
 	  filter(etnia == "MESTIZO",
-	  			 yy_hecho >= 1993) %>%
+	  			 yy_hecho >= 1998) %>%
     mutate(observed = as.numeric(observed)) %>% 
     arrange((yy_hecho))
 
 plot_reclu_mestizos_year_imp <- mestizos_proyecto_reclu %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-	  filter(yy_hecho >= 1996) %>%
+	  filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -737,7 +738,7 @@ plot_reclu_mestizos_year_imp <- mestizos_proyecto_reclu %>%
 plot_reclu_mestizos_year_imp
 
 ggsave(paste0(output_dir,"/etnia/plot_reclu_mestizos_year_imp.jpg"),
-			 plot_reclu_mestizos_year_imp)
+			 plot_reclu_mestizos_year_imp, width = 7, height = 7)
 ```
 ## Comparación de resultados indígenas
 
@@ -745,14 +746,14 @@ ggsave(paste0(output_dir,"/etnia/plot_reclu_mestizos_year_imp.jpg"),
 
 indigenas_proyecto_reclu <- tabla_combinada_reclutamiento %>%
 	  filter(etnia == "INDIGENA",
-	  			 yy_hecho >= 1993) %>%
+	  			 yy_hecho >= 1998) %>%
     mutate(observed = as.numeric(observed)) %>% 
     arrange((yy_hecho))
 
 
 plot_reclu_indigenas_year_imp <- indigenas_proyecto_reclu %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-   filter(yy_hecho >= 1996) %>%
+   filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -780,7 +781,7 @@ plot_reclu_indigenas_year_imp <- indigenas_proyecto_reclu %>%
 plot_reclu_indigenas_year_imp
 
 ggsave(paste0(output_dir,"/etnia/plot_reclu_indigenas_year_imp.jpg"),
-			 plot_reclu_indigenas_year_imp)
+			 plot_reclu_indigenas_year_imp, width = 7, height = 7)
 
 ```
 ## Comparación de resultados NARP
@@ -789,14 +790,14 @@ ggsave(paste0(output_dir,"/etnia/plot_reclu_indigenas_year_imp.jpg"),
 
 narp_proyecto_reclu <- tabla_combinada_reclutamiento %>%
 	  filter(etnia == "NARP",
-	  			 yy_hecho >= 1993) %>%
+	  			 yy_hecho >= 1998) %>%
     mutate(observed = as.numeric(observed)) %>% 
     arrange((yy_hecho))
 
 
 plot_reclu_narp_year_imp <- narp_proyecto_reclu %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>%
-	 filter(yy_hecho >= 1996) %>%
+	 filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -824,7 +825,7 @@ plot_reclu_narp_year_imp <- narp_proyecto_reclu %>%
 plot_reclu_narp_year_imp
 
 ggsave(paste0(output_dir,"/etnia/plot_reclu_narp_year_imp.jpg"),
-			 plot_reclu_narp_year_imp)
+			 plot_reclu_narp_year_imp, width = 7, height = 7)
 
 ```
 
@@ -834,14 +835,14 @@ ggsave(paste0(output_dir,"/etnia/plot_reclu_narp_year_imp.jpg"),
 
 rrom_proyecto_reclu <- tabla_combinada_reclutamiento %>%
 	  filter(etnia == "ROM",
-	  			 yy_hecho >= 1993) %>%
+	  			 yy_hecho >= 1998) %>%
     mutate(observed = as.numeric(observed)) %>% 
     arrange((yy_hecho))
 
 
 plot_reclu_rrom_year_imp <- rrom_proyecto_reclu %>%
     mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-  	filter(yy_hecho >= 1996) %>%
+  	filter(yy_hecho >= 1998) %>%
     ggplot(aes(x = yy_hecho)) +
     geom_line(aes(y = observed, color = "Observado"),  size = 1) +
     geom_line(aes(y = imp_mean,  color = "Imputado JEP-CEV-HRDAG"), size = 1) +
@@ -870,7 +871,7 @@ plot_reclu_rrom_year_imp <- rrom_proyecto_reclu %>%
 plot_reclu_rrom_year_imp
 
 ggsave(paste0(output_dir,"/etnia/plot_reclu_rrom_year_imp.jpg"),
-			 plot_reclu_rrom_year_imp)
+			 plot_reclu_rrom_year_imp, width = 7, height = 7)
 
 ```
 
