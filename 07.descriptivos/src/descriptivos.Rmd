@@ -143,34 +143,34 @@ Violencia, etnia y año:
 
 Mestizos:
 ```{r}
-NARP <- violencias_unidas_aux %>%
+mestizas <- violencias_unidas_aux %>%
   filter(etnia == "MESTIZO")
 
-tabla_NARP <- table(NARP$yy_hecho, NARP$violencia)
-porcentaje_columnas_NARP <- prop.table(tabla_NARP, 2) * 100
+tabla_mestizas <- table(mestizas$yy_hecho, mestizas$violencia)
+porcentaje_columnas_mestizas <- prop.table(tabla_mestizas, 2) * 100
 
-df_porcentaje_NARP <- as.data.frame(porcentaje_columnas_NARP) %>%
+df_porcentaje_mestizas <- as.data.frame(porcentaje_columnas_mestizas) %>%
   rename(Año = Var1, Violencia = Var2, Porcentaje = Freq)
 
-df_porcentaje_NARP$Año <- as.numeric(as.character(df_porcentaje_NARP$Año))
+df_porcentaje_mestizas$Año <- as.numeric(as.character(df_porcentaje_mestizas$Año))
 
-plot_docu_NARP_year <- ggplot(df_porcentaje_NARP, aes(x = Año, y = Porcentaje, color = Violencia, group = Violencia)) +
+plot_docu_mestizas_year <- ggplot(df_porcentaje_mestizas, aes(x = Año, y = Porcentaje, color = Violencia, group = Violencia)) +
   geom_line(size = 1) +  
   geom_point(size = 2) +  
-  labs(title = "Porcentaje de víctimas NARP documentadas", 
+  labs(title = "Porcentaje de víctimas mestizas documentadas", 
        x = "Año", 
        y = "Porcentaje (%)") +
   theme_minimal() +
   scale_color_brewer(palette = "Set1", name = NULL) +  
-  scale_x_continuous(breaks = seq(min(df_porcentaje_NARP$Año, na.rm = TRUE), 
-                                  max(df_porcentaje_NARP$Año, na.rm = TRUE), 
+  scale_x_continuous(breaks = seq(min(df_porcentaje_mestizas$Año, na.rm = TRUE), 
+                                  max(df_porcentaje_mestizas$Año, na.rm = TRUE), 
                                   by = 2)) +
-  scale_y_continuous(breaks = seq(0, max(df_porcentaje_NARP$Porcentaje, na.rm = TRUE), by = 2)) +
+  scale_y_continuous(breaks = seq(0, max(df_porcentaje_mestizas$Porcentaje, na.rm = TRUE), by = 2)) +
   theme(legend.position = "bottom", legend.text = element_text(size = 12)) 
 
-plot_docu_NARP_year
+plot_docu_mestizas_year
 
-ggsave(paste0(output_dir,"/plot_docu_NARP_year.jpg"), plot_docu_NARP_year,
+ggsave(paste0(output_dir,"/plot_docu_mestizas_year.jpg"), plot_docu_mestizas_year,
 							width = 7, height = 7, units = "in")
 
 ```
