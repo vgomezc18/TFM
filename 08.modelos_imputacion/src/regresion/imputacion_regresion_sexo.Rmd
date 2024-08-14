@@ -52,7 +52,7 @@ procesar_violencia <- function(data, tipo_violencia, start_year, end_year) {
   violencia_filtrada <- data %>%
     filter(violencia == tipo_violencia,
            yy_hecho >= start_year & yy_hecho <= end_year) %>%
-    select(yy_hecho, muni_code_hecho, 
+    select(match_group_id, yy_hecho, muni_code_hecho, 
            discapital_mpio, predo_rural_mpio, areaoficialkm2_mpio,
            asistesc_depto, 
            nac_mujeres_mpio, defunciones_mpio, sexo)
@@ -61,7 +61,7 @@ procesar_violencia <- function(data, tipo_violencia, start_year, end_year) {
   print(colSums(is.na(violencia_filtrada)))
   
   # Especificar los métodos de imputación para cada variable
-  meth <- c("pmm", "pmm", 
+  meth <- c("pmm", "pmm", "pmm",
             "pmm", "pmm", "pmm",
             "pmm",
             "pmm", "pmm", "logreg")
@@ -113,13 +113,13 @@ for (tipo in tipos_violencia) {
 }
 
 # Acceder a los resultados
-result_desap_imp96_16 <- resultados[["desaparicion_1998_2016"]]
+result_desap_imp98_16 <- resultados[["desaparicion_1998_2016"]]
 
-result_homi_imp96_16 <- resultados[["homicidio_1998_2016"]]
+result_homi_imp98_16 <- resultados[["homicidio_1998_2016"]]
 
-result_reclu_imp96_16 <- resultados[["reclutamiento_1998_2016"]]
+result_reclu_imp98_16 <- resultados[["reclutamiento_1998_2016"]]
 
-result_secue_imp96_16 <- resultados[["secuestro_1998_2016"]]
+result_secue_imp98_16 <- resultados[["secuestro_1998_2016"]]
 
 saveRDS(resultados, (paste0(output_dir,"/imputacion_regresion_sexo.rds")))
 

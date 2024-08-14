@@ -22,7 +22,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 require(pacman)
 p_load(here, readr, tidyverse, dplyr, validate, data.table, missForest, 
-			 VIM, lattice, simputation, mice, skimr, compareDF)
+			 VIM, lattice, simputation, mice, skimr, compareDF, verdata)
 
 
 ```
@@ -38,7 +38,7 @@ output_dir <- here::here("09.comparacion_modelos/output")
 
 imputacion_donante_sexo <- readRDS(paste0(imputacion_dir,"/imputacion_donante_sexo.rds")) 
 imputacion_regresion_sexo <- readRDS(paste0(imputacion_dir,"/imputacion_regresion_sexo.rds")) 
-imputacion_ml_sexo <- readRDS(paste0(imputacion_dir,"/imputacion_ml_sexo.rds")) 
+imputacion_ml_sexo <- readRDS(paste0(imputacion_dir,"/imputacion_ml_sexo_under_light.rds")) 
 
 # Función para cargar réplicas
 cargar_replicas <- function(nombre_directorio, nombre_archivo, replicas) {
@@ -230,7 +230,7 @@ plot_desap_mujeres_year_imp <- mujeres_proyecto_desap %>%
   geom_line(aes(y = imp_mean, color = "Imputado JEP-CEV-HRDAG"), size = 1) +
   geom_line(aes(y = imp_donante, color = "Imputado por Donante"), size = 1) +
   geom_line(aes(y = imp_regresion_log, color = "Imputado por Regresión Log"), size = 1, linetype = "dashed") +
-  geom_line(aes(y = imp_ml, color = "Imputado por Random Forest"), size = 1, linetype = "dotted") +
+  geom_line(aes(y = imp_ml, color = "Imputado por Random Forest"), size = 1, linetype = "dotdash") +
   geom_ribbon(aes(ymin = imp_lo, ymax = imp_hi), fill = "#1F74B1", alpha = 0.2) +
   theme_minimal() +
   theme(axis.text.x = element_text(size = 11, angle = 90),
@@ -276,7 +276,7 @@ plot_desap_hombres_year_imp <- hombres_proyecto_desap %>%
 	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
 	  geom_line(aes(y = imp_regresion_log,  color = "Imputado por Regresión Log"),
 	  					size = 1, linetype = "dashed") +
-	  geom_line(aes(y = imp_ml, color = "Imputado por Random Forest"), size = 1, linetype = "dotted") +
+	  geom_line(aes(y = imp_ml, color = "Imputado por Random Forest"), size = 1, linetype = "dotdash") +
 	  geom_ribbon(aes(ymin = imp_lo,
                     ymax = imp_hi),
 	  						fill = "#1F74B1",
@@ -332,7 +332,7 @@ plot_homi_mujeres_year_imp <- mujeres_proyecto_homi %>%
 	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
 	  geom_line(aes(y = imp_regresion_log,  color = "Imputado por Regresión Log"),
 	  					size = 1, linetype = "dashed") +
-	  geom_line(aes(y = imp_ml, color = "Imputado por Random Forest"), size = 1, linetype = "dotted") +
+	  geom_line(aes(y = imp_ml, color = "Imputado por Random Forest"), size = 1, linetype = "dotdash") +
 	  geom_ribbon(aes(ymin = imp_lo,
                     ymax = imp_hi),
 	  						fill = "#1F74B1",
@@ -384,7 +384,7 @@ plot_homi_hombres_year_imp <- hombres_proyecto_homi %>%
 	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
 	  geom_line(aes(y = imp_regresion_log,  color = "Imputado por Regresión Log"),
 	  					size = 1, linetype = "dashed") +
-	  geom_line(aes(y = imp_ml, color = "Imputado por Random Forest"), size = 1, linetype = "dotted") +
+	  geom_line(aes(y = imp_ml, color = "Imputado por Random Forest"), size = 1, linetype = "dotdash") +
 	  geom_ribbon(aes(ymin = imp_lo,
                     ymax = imp_hi),
 	  						fill = "#1F74B1",
@@ -440,7 +440,7 @@ plot_secue_mujeres_year_imp <- mujeres_proyecto_secue %>%
 	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
 	  geom_line(aes(y = imp_regresion_log,  color = "Imputado por Regresión Log"),
 	  					size = 1, linetype = "dashed") +
-	  geom_line(aes(y = imp_ml, color = "Imputado por Random Forest"), size = 1, linetype = "dotted") +
+	  geom_line(aes(y = imp_ml, color = "Imputado por Random Forest"), size = 1, linetype = "dotdash") +
 	  geom_ribbon(aes(ymin = imp_lo,
                     ymax = imp_hi),
 	  						fill = "#1F74B1",
@@ -492,7 +492,7 @@ plot_secue_hombres_year_imp <- hombres_proyecto_secue %>%
 	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
 	  geom_line(aes(y = imp_regresion_log,  color = "Imputado por Regresión Log"),
 	  					size = 1, linetype = "dashed") +
-	  geom_line(aes(y = imp_ml, color = "Imputado por Random Forest"), size = 1, linetype = "dotted") +
+	  geom_line(aes(y = imp_ml, color = "Imputado por Random Forest"), size = 1, linetype = "dotdash") +
 	  geom_ribbon(aes(ymin = imp_lo,
                     ymax = imp_hi),
 	  						fill = "#1F74B1",
@@ -561,7 +561,7 @@ plot_reclu_mujeres_year_imp <- mujeres_proyecto_reclu %>%
         legend.box = "horizontal",
         legend.box.margin = margin(0, 0, 10, 0)) +
     scale_x_continuous(breaks = seq(1980, 2016, 2)) +
-		scale_y_continuous(breaks = seq(0, max(mujeres_proyecto_reclu$imp_donante,
+		scale_y_continuous(breaks = seq(0, max(mujeres_proyecto_reclu$imp_ml,
 																				 na.rm = TRUE), by = 100)) +
     theme(legend.position = "bottom") +
     labs(x = "Año",

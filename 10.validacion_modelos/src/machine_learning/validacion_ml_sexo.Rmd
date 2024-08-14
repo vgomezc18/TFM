@@ -1,0 +1,382 @@
+---
+title: "Contraste de métodos de imputación estadística en la documentación de víctimas del
+conflicto armado colombiano"
+author: "Valentina Gómez^[[valegome@ucm.es](valegome@ucm.es)]"
+date: '`r format(Sys.time(), "%d %B %Y")`'
+output: pdf_document
+site: "bookdown::bookdown_site"
+lang: es-CO
+fig_width: 4
+fig_height: 2.5
+fontsize: 12pt
+urlcolor: blue
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+# Validación cruzada ML - Sexo
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+require(pacman)
+p_load(here, tidyverse, dplyr, data.table, Matrix, vcd, xgboost, caret, ggplot2,
+			 pROC, lightgbm)
+
+```
+
+Importación de datos:
+
+```{r}
+input_dir <- here::here("06.union/output")
+output_dir <- here::here("10.validacion_modelos/output/machine_learning/sexo")
+
+data.dt <- readRDS(paste0(input_dir,"/violencias_unidas_aux.rds")) %>%
+	as.data.table()
+```
+Se establecen los regresores que se utilizaran en el modelo
+
+```{r}
+# Prepare data (encodings)####
+regressors_sexo <- c(
+  "macroregion", "dept_code_hecho", "muni_code_hecho", "areaoficialkm2_mpio", "discapital_mpio", "frontera_mpio",
+  "yy_hecho",
+  "violencia", 
+  "etnia", "p_str", "edad_categoria",
+  "pobl_tot_mpio", "indrural_mpio", "predo_rural_mpio",
+  "y_transf_depto", "g_func_general_depto",  
+  "H_coca_depto",
+  "asistesc_depto", "per_alfa_depto", "alumn_total_depto")
+
+```
+
+Me quedo con las observaciones que están completas:
+
+```{r}
+data.dt<-data.dt[complete.cases(data.dt),]
+dim(data.dt)
+
+```
+
+Divido la base de datos en 5 grupos del mismo tamaño de manera aletoria: 
+
+```{r}
+set.seed(123)
+
+data.dt <- data.dt %>%
+  group_by(violencia) %>%
+  mutate(grupo = sample(rep(1:5, length.out = n())))
+
+table(data.dt$violencia, data.dt$grupo)
+
+```
+
+Genero valores NA's para un grupo de cada violencia y dejo los otros 4 grupos como parte del entrenamiento: 
+
+```{r}
+violencias_artificial_nas_1 <- data.dt %>%
+	mutate(sexo = case_when(grupo == 1 ~ NA,
+													TRUE ~ sexo)) %>%
+	select(-grupo) %>%
+	as.data.table()
+
+violencias_artificial_nas_2 <- data.dt %>%
+	mutate(sexo = case_when(grupo == 2 ~ NA,
+													TRUE ~ sexo)) %>%
+	select(-grupo) %>%
+	as.data.table()
+
+violencias_artificial_nas_3 <- data.dt %>%
+	mutate(sexo = case_when(grupo == 3 ~ NA,
+													TRUE ~ sexo)) %>%
+	select(-grupo) %>%
+	as.data.table()
+
+violencias_artificial_nas_4 <- data.dt %>%
+	mutate(sexo = case_when(grupo == 4 ~ NA,
+													TRUE ~ sexo)) %>%
+	select(-grupo) %>%
+	as.data.table()
+
+violencias_artificial_nas_5 <- data.dt %>%
+	mutate(sexo = case_when(grupo == 5 ~ NA,
+													TRUE ~ sexo)) %>%
+	select(-grupo) %>%
+	as.data.table()
+
+```
+
+Encode de las variables en cada grupo artificial (mismo codigo de la imputación, pero lo realizo para cada grupo artificial con NAs que se ha generado antes): 
+
+```{r}
+
+impute_sexo_model <- function(data, output_file_prefix) {
+  # Preparación de los datos
+  data <- data[
+    , c('sexo', regressors_sexo), with = FALSE][
+    , yy_hecho := as.numeric(yy_hecho)][
+    , dept_code_hecho := as.numeric(dept_code_hecho)][
+    , muni_code_hecho := as.numeric(muni_code_hecho)][
+    is.na(etnia), etnia := '*'][
+    is.na(edad_categoria), edad_categoria := '*'][
+    is.na(p_str), p_str := '*']
+
+  # Codificación de variables categóricas
+  macroregion_levels <- sort(unique(data$macroregion))
+  macroregion_enc <- seq_along(macroregion_levels) - 1
+  names(macroregion_enc) <- macroregion_levels
+  
+  violencia_levels <- sort(unique(data$violencia))
+  violencia_enc <- seq_along(violencia_levels) - 1
+  names(violencia_enc) <- violencia_levels
+  
+  pstr_levels <- sort(unique(data$p_str))
+  pstr_enc <- seq_along(pstr_levels) - 1
+  names(pstr_enc) <- pstr_levels
+  
+  etnia_levels <- sort(unique(data$etnia))
+  etnia_enc <- seq_along(etnia_levels) - 1
+  names(etnia_enc) <- etnia_levels
+  
+  edadCat_levels <- sort(unique(data$edad_categoria))
+  edadCat_enc <- seq_along(edadCat_levels) - 1
+  names(edadCat_enc) <- edadCat_levels
+  
+  edadJep_levels <- sort(unique(data$edad_jep))
+  edadJep_enc <- seq_along(edadJep_levels) - 1
+  names(edadJep_enc) <- edadJep_levels
+  
+  sexo_levels <- sort(unique(data$sexo))
+  sexo_enc <- seq_along(sexo_levels) - 1
+  names(sexo_enc) <- sexo_levels
+
+  data_enc.dt <- copy(data)[
+    , sexo := sexo_enc[sexo]][
+    , macroregion := macroregion_enc[macroregion]][
+    , violencia := violencia_enc[violencia]][
+    , etnia := etnia_enc[etnia]][
+    , p_str := pstr_enc[p_str]][
+    , edad_categoria := edadCat_enc[edad_categoria]]
+
+  # Dividir los datos en casos completos y casos faltantes
+  data_sexo_enc.dt <- data_enc.dt[!is.na(sexo)]
+  data_sexo_enc_impute.dt <- data_enc.dt[is.na(sexo)]
+
+  # Submuestreo para balancear las clases
+  n_mujeres <- data_sexo_enc.dt[sexo == 1, .N]
+  n_hombres <- data_sexo_enc.dt[sexo == 0, .N]
+
+  set.seed(412)
+  data_sexo_undersampl.dt <- rbindlist(list(
+    data_sexo_enc.dt[sexo == 0][
+      sample(c(TRUE, FALSE), n_hombres, prob = c(n_mujeres / n_hombres, 1 - n_mujeres / n_hombres), replace = TRUE)],
+    data_sexo_enc.dt[sexo == 1]))
+
+  # Construcción del modelo
+  data_sexo_train <- lgb.Dataset(
+    Matrix(as.matrix(data_sexo_undersampl.dt[, -1]), sparse = TRUE), 
+    label = data_sexo_undersampl.dt$sexo,
+    categorical_feature = c(1L, 2L, 3L, 6L, 8L, 9L, 10L, 11L)
+  )
+
+  lgb_grid <- list(
+    objective = "binary",
+    metric    = "auc",
+    bagging_freq = 5,
+    force_row_wise = TRUE
+  )
+
+  model_sexo_impute <- lightgbm(
+    data = data_sexo_train, 
+    params = lgb_grid, 
+    nrounds = 5000L, 
+    verbose = 2L
+  )
+
+  # Evaluación del modelo
+  prob_sexo_train <- predict(model_sexo_impute, Matrix(as.matrix(data_sexo_undersampl.dt[, -1]), sparse = TRUE))
+  roc_sexo_train <- roc(data_sexo_undersampl.dt$sexo, prob_sexo_train)
+  
+  thrsh <- coords(roc_sexo_train, 'best', best.method="closest.topleft")[["threshold"]]
+  data_sexo_undersampl.dt[
+    , prob_mujer := prob_sexo_train][
+    , sexo_pred := ifelse(prob_mujer >= thrsh, 1, 0)]
+
+  # Matriz de confusión
+  confMat_sexo_train <- confusionMatrix(
+    factor(data_sexo_undersampl.dt$sexo_pred, levels = 0:1), 
+    factor(data_sexo_undersampl.dt$sexo, levels = 0:1)
+  )
+
+  # Imputar sexo en los datos faltantes
+  data_sexo_impute <- Matrix(as.matrix(data_sexo_enc_impute.dt[, -1]), sparse = TRUE)
+  prob_sexo_impute <- predict(model_sexo_impute, data_sexo_impute)
+
+  data_sexo_enc_impute.dt[
+    , prob_mujer := prob_sexo_impute][
+    , sexo := ifelse(prob_mujer >= thrsh, 1, 0)]
+
+  sexo_imp_enc <- data_sexo_enc_impute.dt$sexo
+  sexo_imputed <- ifelse(sexo_imp_enc == 0, 'HOMBRE', 'MUJER')
+
+  data_sexo_imputed.dt <- copy(data)[
+    , sexo_imp := ifelse(is.na(sexo), TRUE, FALSE)][
+    is.na(sexo), sexo := sexo_imputed]
+
+  # Guardar los datos imputados
+  saveRDS(data_sexo_imputed.dt, paste0(output_dir,"/", output_file_prefix, ".rds"))
+  
+  # Retornar los objetos
+  return(list(
+    confMat_sexo_train = confMat_sexo_train,
+    roc_sexo_train = roc_sexo_train,
+    prob_sexo_train = prob_sexo_train
+  ))
+}
+
+# Aplicar la función a cada grupo de datos
+result1 <- impute_sexo_model(violencias_artificial_nas_1, "artif_ml_sexo_light1")
+result2 <- impute_sexo_model(violencias_artificial_nas_2, "artif_ml_sexo_light2")
+result3 <- impute_sexo_model(violencias_artificial_nas_3, "artif_ml_sexo_light3")
+result4 <- impute_sexo_model(violencias_artificial_nas_4, "artif_ml_sexo_light4")
+result5 <- impute_sexo_model(violencias_artificial_nas_5, "artif_ml_sexo_light5")
+
+```
+
+Importo los resultados guardados (por si no se quiere volver a ejecutar toda la imputación anterior):
+
+```{r}
+
+artif_ml_sexo_1 <- readRDS(paste0(output_dir,"/artif_ml_sexo_light1.rds"))
+artif_ml_sexo_2 <- readRDS(paste0(output_dir,"/artif_ml_sexo_light2.rds"))
+artif_ml_sexo_3 <- readRDS(paste0(output_dir,"/artif_ml_sexo_light3.rds"))
+artif_ml_sexo_4 <- readRDS(paste0(output_dir,"/artif_ml_sexo_light4.rds"))
+artif_ml_sexo_5 <- readRDS(paste0(output_dir,"/artif_ml_sexo_light5.rds"))
+
+```
+
+Función para indicadores de impacto de la detección y tratamiento de errores: 
+
+```{r}
+
+# Calcular WAI y WRAI
+calcular_impacto <- function(ml_cols, observaciones, datos) {
+  wai <- sapply(ml_cols, function(col) sum(datos[[col]] - datos[[observaciones]]))
+  wrai <- sapply(ml_cols, function(col) sum(datos[[col]] - datos[[observaciones]]) / sum(datos[[observaciones]]))
+  
+  list(
+    wai = wai,
+    mean_wai = mean(wai),
+    wrai = wrai,
+    mean_wrai = mean(wrai)
+  )
+}
+
+# Columnas de mls y observaciones para mujeres
+ml_cols_mujeres <- paste0("mujeres_ml", 1:5)
+observaciones_mujeres <- "mujeres_obs"
+
+# Columnas de mls y observaciones para hombres
+ml_cols_hombres <- paste0("hombres_ml", 1:5)
+observaciones_hombres <- "hombres_obs"
+
+```
+
+# Desaparición:
+
+```{r}
+artif_ml_sexo_desap1 <- artif_ml_sexo_1 %>% 
+	filter(violencia == "desaparicion" & yy_hecho >= 1998 & yy_hecho <= 2016) %>%
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml1 = sum(sexo == "HOMBRE"),
+    mujeres_ml1 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+artif_ml_sexo_desap2 <- artif_ml_sexo_2 %>% 
+	filter(violencia == "desaparicion" & yy_hecho >= 1998 & yy_hecho <= 2016) %>%
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml2 = sum(sexo == "HOMBRE"),
+    mujeres_ml2 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+artif_ml_sexo_desap3 <- artif_ml_sexo_3 %>% 
+	filter(violencia == "desaparicion" & yy_hecho >= 1998 & yy_hecho <= 2016) %>%
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml3 = sum(sexo == "HOMBRE"),
+    mujeres_ml3 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+artif_ml_sexo_desap4 <- artif_ml_sexo_4 %>% 
+	filter(violencia == "desaparicion" & yy_hecho >= 1998 & yy_hecho <= 2016) %>%
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml4 = sum(sexo == "HOMBRE"),
+    mujeres_ml4 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+artif_ml_sexo_desap5 <- artif_ml_sexo_5 %>% 
+	filter(violencia == "desaparicion" & yy_hecho >= 1998 & yy_hecho <= 2016) %>%
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml5 = sum(sexo == "HOMBRE"),
+    mujeres_ml5 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+# Datos reales observados
+
+obs_sexo_desap <- data.dt %>%
+	filter(violencia == "desaparicion" & yy_hecho >= 1998 & yy_hecho <= 2016) %>%
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_obs = sum(sexo == "HOMBRE"),
+    mujeres_obs = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+
+```
+
+Unión de reales e imputados para luego comparar:
+
+```{r}
+agregados_comparacion_desap <- obs_sexo_desap %>%
+	merge(artif_ml_sexo_desap1, by = c("yy_hecho")) %>%
+	merge(artif_ml_sexo_desap2, by = c("yy_hecho")) %>%
+	merge(artif_ml_sexo_desap3, by = c("yy_hecho")) %>%
+	merge(artif_ml_sexo_desap4, by = c("yy_hecho")) %>%
+	merge(artif_ml_sexo_desap5, by = c("yy_hecho"))
+```
+
+Calcular el impacto:
+```{r}
+
+# Impacto para mujeres
+impacto_mujeres_desap <- calcular_impacto(ml_cols_mujeres, observaciones_mujeres, agregados_comparacion_desap)
+
+print(impacto_mujeres_desap$wai)
+print(impacto_mujeres_desap$mean_wai) #En promedio los valores imputados son mayores que los observados 1474.4
+print(impacto_mujeres_desap$wrai)
+print(impacto_mujeres_desap$mean_wrai) #Los valores imputados son en promedio un 52% diferentes de los observados
+
+
+#impacto para hombres
+impacto_hombres_desap <- calcular_impacto(ml_cols_hombres, observaciones_hombres, agregados_comparacion_desap)
+
+print(impacto_hombres_desap$wai)
+print(impacto_hombres_desap$mean_wai)#En promedio los valores imputados son menores que los observados -1474.4
+print(impacto_hombres_desap$wrai)
+print(impacto_hombres_desap$mean_wrai) #Los valores imputados son en promedio un -6.71% diferentes de los observados.
+
+```
+
+
+
+
+
+
+
+
+
+

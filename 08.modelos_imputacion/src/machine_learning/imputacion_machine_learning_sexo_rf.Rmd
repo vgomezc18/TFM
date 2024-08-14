@@ -1,0 +1,655 @@
+---
+title: "Contraste de métodos de imputación estadística en la documentación de víctimas del
+conflicto armado colombiano"
+author: "Valentina Gómez^[[valegome@ucm.es](valegome@ucm.es)]"
+date: '`r format(Sys.time(), "%d %B %Y")`'
+output: pdf_document
+site: "bookdown::bookdown_site"
+lang: es-CO
+fig_width: 4
+fig_height: 2.5
+fontsize: 12pt
+urlcolor: blue
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+# Imputación por Machine Learning - Sexo - RF
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+require(pacman)
+p_load(here, tidyverse, dplyr, data.table, ranger, caret, ggplot2, pROC, rpart)
+
+```
+
+Importación de datos:
+
+```{r}
+input_dir <- here::here("06.union/output")
+output_dir <- here::here("08.modelos_imputacion/output")
+
+data.dt <- readRDS(paste0(input_dir,"/violencias_unidas_aux.rds")) %>%
+	as.data.table()
+```
+
+Imputación de la variable sexo usando un modelo de random forest y paquete ranger:
+
+Se utilizan los valores NA como otra categoria, llamada * para imputar el sexo y se convierte en factor la variable sexo.
+
+```{r}
+data.dt[
+  , sexo := factor(sexo)][  
+  is.na(etnia), etnia := '*'][
+  is.na(edad_categoria), edad_categoria := '*'][
+  is.na(edad_jep), edad_jep := '*'][
+  is.na(p_str), p_str := '*']
+
+table(data.dt$etnia, useNA = "a")
+table(data.dt$edad_categoria, useNA = "a")
+table(data.dt$edad_jep, useNA = "a")
+table(data.dt$p_str, useNA = "a")
+          
+```
+Se establecen los regresores que se utilizaran en el modelo
+
+```{r}
+# Prepare data ####
+regressors_sexo <- c(
+  "macroregion", "dept_code_hecho", "muni_code_hecho", "areaoficialkm2_mpio", "discapital_mpio", "frontera_mpio",
+  "yy_hecho",
+  "violencia", 
+  "etnia", "p_str", "edad_categoria",
+  "pobl_tot_mpio", "indrural_mpio", "predo_rural_mpio",
+  "y_transf_depto", "g_func_general_depto",  
+  "H_coca_depto",
+  "asistesc_depto", "per_alfa_depto", "alumn_total_depto")
+
+```
+
+Se dividen los datos en dos conjuntos, uno donde sexo no es NA y que se usará para entrenar el modelo, y otro en donde el sexo es NA y se utiliza para la imputación.
+
+```{r}
+data_sexo.dt <- data.dt[          # datos para construir el modelo
+  !is.na(sexo)][
+  , c('sexo', regressors_sexo), with = FALSE]
+ 
+data_sexo_impute.dt <- data.dt[   # datos a imputar
+  is.na(sexo)][ # Unidades a imputar 
+  , c('sexo', regressors_sexo), with = FALSE] 
+
+```
+
+
+Se construye el modelo, pero el conjunto de datos esta desbalanceado (hay más hombres que mujeres) entonces se realiza un submuestreo para balancear la cantidad de observaciones de cada sexo.
+
+
+```{r}
+table(data_sexo.dt$sexo, useNA = 'always')
+n_mujeres <- data_sexo.dt[sexo == 'MUJER', .N]
+n_hombres <- data_sexo.dt[sexo == 'HOMBRE', .N]
+
+set.seed(412)
+data_sexo_undersampl.dt <- rbindlist(list(
+  data_sexo.dt[sexo == 'HOMBRE'][
+    sample(c(TRUE, FALSE), n_hombres, prob = c(n_mujeres / n_hombres, 1 - n_mujeres / n_hombres) , replace = TRUE)],
+  data_sexo.dt[sexo == 'MUJER']))
+table(data_sexo_undersampl.dt$sexo, useNA = 'always')
+```
+Ahora se construye un modelo de random forest con los datos submuestreados y se ajustan los hiperparametros.
+
+Entrenamiento y validación del modelo con K-Fold Cross-Validation:
+
+```{r}
+hora_inicio <- Sys.time()
+## Manual (non-repeated) k-fold cross-validation ####
+## Grid search for hyperparameters
+grid_hyperp.dt <- as.data.table(expand.grid(
+  mtry = c(4, length(regressors_sexo) - 3), #mtry es el número de variables que el modelo considerará al hacer un split en cada nodo de un árbol
+  min.node.size = c(50, 500), #min.node.size es el tamaño mínimo que deben tener los nodos terminales de un árbol. Se prueba 50 y 500
+  min.bucket = c(5, 10, 20),  # Tamaño mínimo de cualquier terminal en los árboles
+  num.trees = c(100, 500))) # num.trees es el número total de árboles en el bosque. Se prueba 100 y 500
+
+#Construimos los 5 folds
+n_rf    <- nrow(data_sexo_undersampl.dt)
+n_folds <- 5
+set.seed(543) # For k-fold reproducibility
+data_sexo_undersampl.dt[, fold_idx := sample(1:n_folds, n_rf, replace = TRUE)]
+
+# Train-test para cada fold y cada celda de hiperparametros
+roc_sexo_train.lst <- vector(mode = 'list', length = nrow(grid_hyperp.dt))
+roc_sexo_test.lst  <- vector(mode = 'list', length = nrow(grid_hyperp.dt))
+prob_sexo_test.lst  <- vector(mode = 'list', length = nrow(grid_hyperp.dt))
+n_cells <- nrow(grid_hyperp.dt)
+
+for (grid_id in 1:n_cells){
+  
+  mtry          <- grid_hyperp.dt[grid_id][['mtry']]
+  min.node.size <- grid_hyperp.dt[grid_id][['min.node.size']]
+  num.trees     <- grid_hyperp.dt[grid_id][['num.trees']]
+  min.bucket    <- grid_hyperp.dt[grid_id][['min.bucket']]
+  
+  cat(paste0('mtry= ', mtry, '; min.node.size= ', min.node.size,
+  					 '; num.trees= ', num.trees, '; min.bucket= ', min.bucket, '\n'))
+  
+  roc_sexo_train.lst[[grid_id]] <- vector('list', n_folds)
+  
+  for (fold in 1:n_folds){
+    
+    
+    data_train.dt <- data_sexo_undersampl.dt[fold_idx != fold]
+    data_test.dt  <- data_sexo_undersampl.dt[fold_idx == fold]
+    model_sexo <- ranger(
+      sexo ~ ., 
+      data = data_train.dt,
+      splitrule = "gini",
+      mtry = mtry,
+      min.node.size = min.node.size,
+      num.trees = num.trees,
+      min.bucket = min.bucket,
+      probability = TRUE)
+    
+    pred_sexo_train  <- predict(model_sexo, data = data_train.dt)
+    
+    roc_sexo_train.lst[[grid_id]][[fold]] <- roc(data_train.dt$sexo,
+    																						 pred_sexo_train$predictions[, 'HOMBRE'],
+    																						 levels = c('HOMBRE', 'MUJER'))
+    
+    pred_sexo_test  <- predict(model_sexo, data = data_test.dt)
+    
+    roc_sexo_test.lst[[grid_id]][[fold]] <- roc(data_test.dt$sexo,
+    																						pred_sexo_test$predictions[, 'HOMBRE'],
+    																						levels = c('HOMBRE', 'MUJER')) 
+    
+    prob_sexo_test.lst[[grid_id]][[fold]] <- pred_sexo_test$predictions
+    cat(paste0('   fold= ', fold, '; auc_pred= ', auc(roc_sexo_test.lst[[grid_id]][[fold]]), '\n'))
+  }    
+  names(roc_sexo_train.lst[[grid_id]]) <- paste0('fold= ', 1:n_folds)
+  names(roc_sexo_test.lst[[grid_id]])  <- paste0('fold= ', 1:n_folds)
+
+}
+names(roc_sexo_train.lst) <- paste0('hyper_cell= ', 1:n_cells)
+names(roc_sexo_test.lst) <- paste0('hyper_cell= ', 1:n_cells)
+
+# saveRDS(roc_sexo_train.lst, (paste0(output_dir,"/roc_sexo_train.lst.rds")))
+# saveRDS(roc_sexo_test.lst, (paste0(output_dir,"/roc_sexo_test.lst.rds")))
+hora_fin <- Sys.time()
+duracion1 <- hora_fin - hora_inicio
+duracion1
+```
+
+Selección de los mejores hiperparámetros:
+
+```{r}
+#Calculamos el AUC en cada fold y cada celda
+auc_sexo_train.lst <- lapply(roc_sexo_train.lst, function(lst){sapply(lst, function(roc){auc(roc)})})
+auc_sexo_train.lst
+
+auc_sexo_test.lst  <- lapply(roc_sexo_test.lst,  function(lst){sapply(lst, function(roc){auc(roc)})})
+auc_sexo_test.lst
+
+# Tomamos la media de las AUC en cada celda
+auc_sexo_train_main <- sapply(auc_sexo_train.lst, mean)
+auc_sexo_train_main
+
+auc_sexo_test_main <- sapply(auc_sexo_test.lst, mean)
+auc_sexo_test_main
+
+auc.dt <- data.table(
+  hyper_cell = seq_along(auc_sexo_test_main), 
+  train = round(auc_sexo_train_main, 3), 
+  test  = round(auc_sexo_test_main, 3))
+auc.dt <- auc.dt[
+  grid_hyperp.dt[, hyper_cell := 1:.N], on = 'hyper_cell']
+auc.dt[which.max(auc.dt$test)] # Selecciono el AUC máximo.
+# (el modelo optimo parece darse cuando mtry es bajo, min.node-size es bajo y num.trees es alto)
+# (el valor de auc no es muy bueno; quiza haya que probar un boosting)
+# (el undersampling no parece mejorar el modelo)
+# (la cantidad de overfitting no parece reducirse mucho con el undersampling)
+
+```
+
+Se construye un modelo Random Forest (ranger) con los datos submuestreados. 
+Se ajustan hiperparámetros como mtry, min.bucket, num.trees y min.bucket;
+
+```{r}
+# Predecimos con unos hiperparámetros en la dirección de los óptimos 
+model_sexo_impute <- ranger(
+  x = data_sexo_undersampl.dt[, ..regressors_sexo], 
+  y = data_sexo_undersampl.dt$sexo,
+  mtry = 4,
+  min.bucket = 5, 
+  min.node.size = 50,
+  num.trees = 500,
+  importance = 'permutation',
+  probability = TRUE, # atención: guardamos la probabilidad para hacer manualmente la predicción
+  verbose = TRUE)
+```
+
+Se calcula la importancia de cada variable predictora en el modelo.
+
+```{r}
+importance <- sort(model_sexo_impute$variable.importance, decreasing = TRUE)
+data_sexo_importance.dt <- data.table(
+  variable = names(importance),
+  importancia = importance)
+
+plot_importancia_var_ranger_sexo_under <- ggplot(data_sexo_importance.dt, aes(x = reorder(variable, importancia), y = importancia)) +
+  geom_col() +
+  coord_flip() +
+  labs(x = '', y = 'Importancia (permutación)') +
+  theme_bw()
+
+ggsave(paste0(output_dir,"/plot_importancia_var_ranger_sexo_under_RF.jpg"),
+			 plot_importancia_var_ranger_sexo_under, width = 7, height = 7)
+```
+
+Se calcula la curva ROC y la matriz de confusión para evaluar el rendimiento del modelo en el conjunto de entrenamiento submuestreado.
+
+```{r}
+## AUC, ROC and confusion matrix for undersampled train data ####
+prob_sexo_train    <- model_sexo_impute$predictions[, 'HOMBRE']
+roc_sexo_train.roc <- roc(data_sexo_undersampl.dt$sexo, prob_sexo_train) # Comparando con pruebas sin submuestreo la AUC no parece cambiar mucho
+roc_sexo_train.roc
+
+# Call:
+# roc.default(response = data_sexo_undersampl.dt$sexo, predictor = prob_sexo_train)
+# 
+# Data: prob_sexo_train in 52186 controls (data_sexo_undersampl.dt$sexo HOMBRE) > 51875 cases (data_sexo_undersampl.dt$sexo MUJER).
+# Area under the curve: 0.6916
+
+thrsh <- coords(roc_sexo_train.roc, 'best', best.method="closest.topleft")[["threshold"]] #coordenadas del punto óptimo de la curva ROC
+
+data_sexo_undersampl.dt[
+  , sexo := factor(sexo, levels = c('HOMBRE', 'MUJER'))][
+  , prob_hombre := prob_sexo_train][
+  , sexo_pred := ifelse(prob_hombre >= thrsh, 'HOMBRE', 'MUJER')][
+  , sexo_pred := factor(sexo_pred, levels = c('HOMBRE', 'MUJER'))]
+
+```
+
+Matriz de confusión:
+```{r}
+confMat_sexo_train.lst <- caret::confusionMatrix(as.factor(data_sexo_undersampl.dt$sexo_pred), as.factor(data_sexo_undersampl.dt$sexo))
+
+confMat_sexo_train.lst$byClass
+confMat_sexo_train.lst$table
+
+
+#   Sensitivity          Specificity       Pos Pred Value       Neg Pred Value            Precision               Recall 
+#            0.6628214            0.6185060            0.6360794            0.6458203            0.6360794            0.6628214 
+#                   F1           Prevalence       Detection Rate Detection Prevalence    Balanced Accuracy 
+#            0.6491752            0.5014943            0.3324012            0.5225781            0.6406637 
+#           Reference
+# Prediction HOMBRE MUJER
+#     HOMBRE  34590 19790
+#     MUJER   17596 32085
+
+```
+Se calcula la curva ROC y la matriz de confusión para evaluar el rendimiento del modelo en todo el conjunto de entrenamiento:
+
+```{r}
+## AUC, ROC and confusion matrix for all train data ####
+pred_sexo_train <- predict(model_sexo_impute, data = data_sexo.dt)
+prob_sexo_train_completo <- pred_sexo_train$predictions[, 'HOMBRE']
+roc_sexo_train_completo.roc <- roc(data_sexo.dt$sexo, prob_sexo_train_completo) # Comparando el caso con submuestreo la AUC no parece cambiar mucho
+roc_sexo_train_completo.roc
+
+# Call:
+# roc.default(response = data_sexo.dt$sexo, predictor = prob_sexo_train_completo)
+# 
+# Data: prob_sexo_train_completo in 338924 controls (data_sexo.dt$sexo HOMBRE) > 51875 cases (data_sexo.dt$sexo MUJER).
+# Area under the curve: 0.7894
+
+thrsh_completo <- coords(roc_sexo_train_completo.roc, 'best', best.method="closest.topleft")[["threshold"]]
+data_sexo.dt[
+  , sexo := factor(sexo, levels = c('HOMBRE', 'MUJER'))][
+  , prob_hombre := pred_sexo_train$predictions[, 'HOMBRE']][
+  , sexo_pred := ifelse(prob_hombre >= thrsh_completo, 'HOMBRE', 'MUJER')][
+  , sexo_pred := factor(sexo_pred, levels = c('HOMBRE', 'MUJER'))]
+confMat_sexo_completo.lst <- caret::confusionMatrix(as.factor(data_sexo.dt$sexo_pred), as.factor(data_sexo.dt$sexo))
+confMat_sexo_completo.lst$byClass
+confMat_sexo_completo.lst$table
+
+#          Sensitivity          Specificity       Pos Pred Value       Neg Pred Value            Precision               Recall 
+#            0.7175266            0.7139470            0.9424903            0.2789423            0.9424903            0.7175266 
+#                   F1           Prevalence       Detection Rate Detection Prevalence    Balanced Accuracy 
+#            0.8147651            0.8672591            0.6222815            0.6602525            0.7157368 
+#           Reference
+# Prediction HOMBRE  MUJER
+#     HOMBRE 243187  14839
+#     MUJER   95737  37036
+
+
+```
+
+Se imputa el sexo en los datos faltantes:
+
+```{r}
+hora_inicio <- Sys.time()
+
+## Impute sex with model (undersampled; no CV) ####
+pred_sexo_impute <- predict(model_sexo_impute, data = data_sexo_impute.dt)
+prob_sexo_impute <- pred_sexo_impute$predictions[, 'HOMBRE']
+data_sexo_impute.dt[
+  , prob_hombre := prob_sexo_impute][
+  , sexo := ifelse(prob_hombre >= thrsh_completo, 'HOMBRE', 'MUJER')][
+  , sexo := factor(sexo, levels = c('HOMBRE', 'MUJER'))]
+data_sexo_imputed.dt <- copy(data.dt)[
+  , sexo_imp := ifelse(is.na(sexo), TRUE, FALSE)][
+  is.na(sexo), sexo := data_sexo_impute.dt$sexo]
+
+hora_fin <- Sys.time()
+duracion2 <- hora_fin - hora_inicio
+duracion2
+
+saveRDS(data_sexo_imputed.dt, (paste0(output_dir,"/data_sexo_imputed.dt_undersampled_RF.rds")))
+
+```
+
+Visualización de resultados:
+
+```{r}
+## Visualise  ####
+# Calculamos ratios de hombres y mujeres y visualizamos comparando antes y después 
+ratio_sexo_original.dt <- data_sexo_imputed.dt[
+  sexo_imp == FALSE, .(ratio_mujeres = sum(sexo == 'MUJER' & sexo_imp == FALSE) / .N, 
+                       ratio_hombres = sum(sexo == 'HOMBRE' & sexo_imp == FALSE) / .N), by = c("muni_code_hecho", "yy_hecho", "violencia")]
+ratio_missing_original.dt <- data_sexo_imputed.dt[
+  , .(ratio_missing = sum(sexo_imp) / .N), by = c("muni_code_hecho", "yy_hecho", "violencia")][
+  , dataset := 'original']
+
+ratio_sexo_original.dt <- merge(ratio_sexo_original.dt, ratio_missing_original.dt, by = c("muni_code_hecho", "yy_hecho", "violencia"), all = TRUE)[
+  ratio_missing >= 1 & is.na(ratio_mujeres), ratio_mujeres := 0][
+  ratio_missing >= 1 & is.na(ratio_hombres), ratio_hombres := 0]
+
+ratio_sexo_imputado.dt <- data_sexo_imputed.dt[
+  , .(ratio_mujeres = sum(sexo == 'MUJER') / .N, 
+  ratio_hombres = sum(sexo == 'HOMBRE') / .N), by = c("muni_code_hecho", "yy_hecho", "violencia")][
+  , ratio_missing := 0][
+  , dataset := 'imputado']
+
+ratio_sexo.dt <- rbindlist(list(ratio_sexo_imputado.dt, ratio_sexo_original.dt))
+
+### 1. imputation rates ####
+plot_ratio_imp_sexo_under <- ggplot(ratio_sexo.dt, aes(x = dataset, y = ratio_missing, fill = dataset)) +
+  geom_boxplot() +
+  facet_grid(violencia ~ yy_hecho) +
+  labs(x = '', y = 'Tasa de imputación\n') +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+ggsave(paste0(output_dir,"/plot_ratio_imp_sexo_under_RF.jpg"),
+			 plot_ratio_imp_sexo_under, width = 15, height = 10)
+
+
+### 2. sex distributions ####
+## No tenemos en cuenta los municipios que se imputan por completo (ratio_missing == 1)
+plot_ratio_sexo_under <- ggplot(ratio_sexo.dt[ratio_missing < 1], aes(x = dataset, y = ratio_hombres, fill = dataset)) +
+  geom_boxplot() +
+  facet_grid(violencia ~ yy_hecho) +
+  labs(x = '', y = 'Ratio de hombres\n') +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+ggsave(paste0(output_dir,"/plot_ratio_sexo_under_RF.jpg"),
+			 plot_ratio_sexo_under, width = 15, height = 10)
+
+## La imputación no parece perturbar los ratios 
+## por año y tipo de violencia, salvo cuando el 
+## número de missing es muy alto
+```
+Agrupamos los resultados para la comparación con los demás métodos: 
+
+```{r}
+
+colSums(is.na(data_sexo_imputed.dt))
+
+
+imputacion_ml_sexo <- data_sexo_imputed.dt %>%
+	filter(yy_hecho >= 1996) %>%
+	group_by(sexo, yy_hecho, violencia) %>%
+  summarise(imp_ml = n()) %>%
+  arrange(yy_hecho)
+
+saveRDS(imputacion_ml_sexo, (paste0(output_dir,"/imputacion_ml_sexo_under_RF.rds")))
+
+```
+
+
+
+# Modelo sin submuestreo (Es muy pesado para ejecutar, más de 3horas)
+
+<!-- Entrenamiento y validación del modelo con K-Fold Cross-Validation: -->
+
+<!-- ```{r} -->
+<!-- hora_inicio <- Sys.time() -->
+
+<!-- ## Manual (non-repeated) k-fold cross-validation #### -->
+<!-- ## Grid search for hyperparameters -->
+<!-- grid_hyperp.dt <- as.data.table(expand.grid( -->
+<!--   mtry = c(4, length(regressors_sexo) - 3), #mtry es el número de variables que el modelo considerará al hacer un split en cada nodo de un árbol -->
+<!--   min.node.size = c(50, 500), #min.node.size es el tamaño mínimo que deben tener los nodos terminales de un árbol. Se prueba 50 y 500 -->
+<!--   min.bucket = c(5, 10, 20),  # Tamaño mínimo de cualquier terminal en los árboles -->
+<!--   num.trees = c(100, 500))) # num.trees es el número total de árboles en el bosque. Se prueba 100 y 500 -->
+
+<!-- #Construimos los 5 folds -->
+<!-- n_rf    <- nrow(data_sexo.dt) -->
+<!-- n_folds <- 5 -->
+<!-- set.seed(543) # For k-fold reproducibility -->
+<!-- data_sexo.dt[, fold_idx := sample(1:n_folds, n_rf, replace = TRUE)] -->
+
+<!-- # Train-test para cada fold y cada celda de hiperparametros -->
+<!-- roc_sexo_train.lst <- vector(mode = 'list', length = nrow(grid_hyperp.dt)) -->
+<!-- roc_sexo_test.lst  <- vector(mode = 'list', length = nrow(grid_hyperp.dt)) -->
+<!-- prob_sexo_test.lst  <- vector(mode = 'list', length = nrow(grid_hyperp.dt)) -->
+<!-- n_cells <- nrow(grid_hyperp.dt) -->
+
+<!-- for (grid_id in 1:n_cells){ -->
+
+<!--   mtry          <- grid_hyperp.dt[grid_id][['mtry']] -->
+<!--   min.node.size <- grid_hyperp.dt[grid_id][['min.node.size']] -->
+<!--   num.trees     <- grid_hyperp.dt[grid_id][['num.trees']] -->
+<!--   min.bucket    <- grid_hyperp.dt[grid_id][['min.bucket']] -->
+
+<!--   cat(paste0('mtry= ', mtry, '; min.node.size= ', min.node.size, -->
+<!--   					 '; num.trees= ', num.trees, '; min.bucket= ', min.bucket, '\n')) -->
+
+<!--   roc_sexo_train.lst[[grid_id]] <- vector('list', n_folds) -->
+
+<!--   for (fold in 1:n_folds){ -->
+
+
+<!--     data_train.dt <- data_sexo.dt[fold_idx != fold] -->
+<!--     data_test.dt  <- data_sexo.dt[fold_idx == fold] -->
+<!--     model_sexo <- ranger( -->
+<!--       sexo ~ .,  -->
+<!--       data = data_train.dt, -->
+<!--       splitrule = "gini", -->
+<!--       mtry = mtry, -->
+<!--       min.node.size = min.node.size, -->
+<!--       num.trees = num.trees, -->
+<!--       min.bucket = min.bucket, -->
+<!--       probability = TRUE) -->
+
+<!--     pred_sexo_train  <- predict(model_sexo, data = data_train.dt) -->
+
+<!--     roc_sexo_train.lst[[grid_id]][[fold]] <- roc(data_train.dt$sexo, -->
+<!--     																						 pred_sexo_train$predictions[, 'HOMBRE'], -->
+<!--     																						 levels = c('HOMBRE', 'MUJER')) -->
+
+<!--     pred_sexo_test  <- predict(model_sexo, data = data_test.dt) -->
+
+<!--     roc_sexo_test.lst[[grid_id]][[fold]] <- roc(data_test.dt$sexo, -->
+<!--     																						pred_sexo_test$predictions[, 'HOMBRE'], -->
+<!--     																						levels = c('HOMBRE', 'MUJER'))  -->
+
+<!--     prob_sexo_test.lst[[grid_id]][[fold]] <- pred_sexo_test$predictions -->
+<!--     cat(paste0('   fold= ', fold, '; auc_pred= ', auc(roc_sexo_test.lst[[grid_id]][[fold]]), '\n')) -->
+<!--   }     -->
+<!--   names(roc_sexo_train.lst[[grid_id]]) <- paste0('fold= ', 1:n_folds) -->
+<!--   names(roc_sexo_test.lst[[grid_id]])  <- paste0('fold= ', 1:n_folds) -->
+
+<!-- } -->
+<!-- names(roc_sexo_train.lst) <- paste0('hyper_cell= ', 1:n_cells) -->
+<!-- names(roc_sexo_test.lst) <- paste0('hyper_cell= ', 1:n_cells) -->
+
+<!-- hora_fin <- Sys.time() -->
+<!-- duracion3 <- hora_fin - hora_inicio -->
+<!-- duracion3 -->
+
+<!-- # saveRDS(roc_sexo_train.lst, (paste0(output_dir,"/roc_sexo_train.lst.rds"))) -->
+<!-- # saveRDS(roc_sexo_test.lst, (paste0(output_dir,"/roc_sexo_test.lst.rds"))) -->
+
+<!-- ``` -->
+
+<!-- Selección de los mejores hiperparámetros: -->
+
+<!-- ```{r} -->
+<!-- #Calculamos el AUC en cada fold y cada celda -->
+<!-- auc_sexo_train.lst <- lapply(roc_sexo_train.lst, function(lst){sapply(lst, function(roc){auc(roc)})}) -->
+<!-- auc_sexo_train.lst -->
+
+<!-- auc_sexo_test.lst  <- lapply(roc_sexo_test.lst,  function(lst){sapply(lst, function(roc){auc(roc)})}) -->
+<!-- auc_sexo_test.lst -->
+
+<!-- # Tomamos la media de las AUC en cada celda -->
+<!-- auc_sexo_train_main <- sapply(auc_sexo_train.lst, mean) -->
+<!-- auc_sexo_train_main -->
+
+<!-- auc_sexo_test_main <- sapply(auc_sexo_test.lst, mean) -->
+<!-- auc_sexo_test_main -->
+
+<!-- auc.dt <- data.table( -->
+<!--   hyper_cell = seq_along(auc_sexo_test_main),  -->
+<!--   train = round(auc_sexo_train_main, 3),  -->
+<!--   test  = round(auc_sexo_test_main, 3)) -->
+<!-- auc.dt <- auc.dt[ -->
+<!--   grid_hyperp.dt[, hyper_cell := 1:.N], on = 'hyper_cell'] -->
+<!-- auc.dt[which.max(auc.dt$test)] # Selecciono el AUC máximo. -->
+
+<!-- ``` -->
+
+<!-- Contruir el modelo; -->
+
+<!-- ```{r} -->
+
+<!-- # Build model without undersampling  #### -->
+<!-- # Variable a imputar: sexo -->
+<!-- # Mantenemos las variables etnia, violencia, p_str, edad_categoria como regresores -->
+<!-- # convirtiendo sus NA en una nueva categoría * (está hecho más arriba) -->
+
+<!-- # Predecimos con unos hiperparámetros en la dirección de los óptimos encontrados  -->
+<!-- model_sexo_impute <- ranger( -->
+<!--   x = data_sexo.dt[, ..regressors_sexo],  -->
+<!--   y = data_sexo.dt$sexo, -->
+<!--   mtry = 4, -->
+<!--   min.bucket = 10,  -->
+<!--   num.trees = 5000, -->
+<!--   importance = 'permutation', -->
+<!--   probability = TRUE, # atención: guardamos la probabilidad para hacer manualmente la predicción -->
+<!--   verbose = TRUE) -->
+
+<!-- ## Variable importance (permutation) #### -->
+<!-- importance <- sort(model_sexo_impute$variable.importance, decreasing = TRUE) -->
+<!-- data_sexo_importance.dt <- data.table( -->
+<!--   variable = names(importance), -->
+<!--   importancia = importance) -->
+<!-- plot_importancia_var_ranger_sexo <- ggplot(data_sexo_importance.dt, aes(x = reorder(variable, importancia), y = importancia)) + -->
+<!--   geom_col() + -->
+<!--   coord_flip() + -->
+<!--   labs(x = '', y = 'Importancia (permutación)') + -->
+<!--   theme_bw() -->
+
+<!-- ggsave(paste0(output_dir,"/plot_importancia_var_ranger_sexo.jpg"), -->
+<!-- 			 plot_importancia_var_ranger_sexo, width = 7, height = 7) -->
+
+
+<!-- ## AUC, ROC and confusion matrix for all train data #### -->
+<!-- pred_sexo_train <- predict(model_sexo_impute, data = data_sexo.dt) -->
+<!-- prob_sexo_train_completo <- pred_sexo_train$predictions[, 'HOMBRE'] -->
+<!-- roc_sexo_train_completo.roc <- roc(data_sexo.dt$sexo, prob_sexo_train_completo)  -->
+<!-- thrsh_completo <- coords(roc_sexo_train_completo.roc, 'best')[["threshold"]] -->
+<!-- data_sexo.dt[ -->
+<!--   , sexo := factor(sexo, levels = c('HOMBRE', 'MUJER'))][ -->
+<!--     , prob_hombre := pred_sexo_train$predictions[, 'HOMBRE']][ -->
+<!--       , sexo_pred := ifelse(prob_hombre >= thrsh_completo, 'HOMBRE', 'MUJER')][ -->
+<!--         , sexo_pred := factor(sexo_pred, levels = c('HOMBRE', 'MUJER'))] -->
+<!-- confMat_sexo_completo.lst <- caret::confusionMatrix(as.factor(data_sexo.dt$sexo_pred), as.factor(data_sexo.dt$sexo)) -->
+<!-- confMat_sexo_completo.lst$byClass -->
+
+<!-- ## Impute sex with model (no undersampling; no CV) #### -->
+<!-- pred_sexo_impute <- predict(model_sexo_impute, data = data_sexo_impute.dt) -->
+<!-- prob_sexo_impute <- pred_sexo_impute$predictions[, 'HOMBRE'] -->
+<!-- data_sexo_impute.dt[ -->
+<!--   , prob_hombre := prob_sexo_impute][ -->
+<!--     , sexo := ifelse(prob_hombre >= thrsh_completo, 'HOMBRE', 'MUJER')][ -->
+<!--       , sexo := factor(sexo, levels = c('HOMBRE', 'MUJER'))] -->
+<!-- data_sexo_imputed_nosub.dt <- copy(data.dt)[ -->
+<!--   , sexo_imp := ifelse(is.na(sexo), TRUE, FALSE)][ -->
+<!--     is.na(sexo), sexo := data_sexo_impute.dt$sexo] -->
+
+<!-- saveRDS(data_sexo_imputed_nosub.dt, (paste0(output_dir,"/data_sexo_imputed_nosub.dt.rds"))) -->
+
+
+<!-- ## Visualise #### -->
+<!-- # Calculamos ratios de hombres y mujeres y visualizamos comparando antes y después de comparar -->
+<!-- ratio_sexo_original.dt <- data_sexo_imputed_nosub.dt[ -->
+<!--   sexo_imp == FALSE, .(ratio_mujeres = sum(sexo == 'MUJER' & sexo_imp == FALSE) / .N,  -->
+<!--                        ratio_hombres = sum(sexo == 'HOMBRE' & sexo_imp == FALSE) / .N), by = c("muni_code_hecho", "yy_hecho", "violencia")] -->
+<!-- ratio_missing_original.dt <- data_sexo_imputed_nosub.dt[ -->
+<!--   , .(ratio_missing = sum(sexo_imp) / .N), by = c("muni_code_hecho", "yy_hecho", "violencia")][ -->
+<!--     , dataset := 'original'] -->
+
+<!-- ratio_sexo_original.dt <- merge(ratio_sexo_original.dt, ratio_missing_original.dt, by = c("muni_code_hecho", "yy_hecho", "violencia"), all = TRUE)[ -->
+<!--   ratio_missing >= 1 & is.na(ratio_mujeres), ratio_mujeres := 0][ -->
+<!--     ratio_missing >= 1 & is.na(ratio_hombres), ratio_hombres := 0] -->
+
+<!-- ratio_sexo_imputado.dt <- data_sexo_imputed_nosub.dt[ -->
+<!--   , .(ratio_mujeres = sum(sexo == 'MUJER') / .N,  -->
+<!--       ratio_hombres = sum(sexo == 'HOMBRE') / .N), by = c("muni_code_hecho", "yy_hecho", "violencia")][ -->
+<!--         , ratio_missing := 0][ -->
+<!--           , dataset := 'imputado'] -->
+
+<!-- ratio_sexo.dt <- rbindlist(list(ratio_sexo_imputado.dt, ratio_sexo_original.dt)) -->
+
+<!-- ### 1. imputation rates #### -->
+<!-- plot_ratio_imp_sexo_nosub <- ggplot(ratio_sexo.dt, aes(x = dataset, y = ratio_missing, fill = dataset)) + -->
+<!--   geom_boxplot() + -->
+<!--   facet_grid(violencia ~ yy_hecho) + -->
+<!--   labs(x = '', y = 'Tasa de imputación\n') + -->
+<!--   theme_bw() + -->
+<!--   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) -->
+
+<!-- ggsave(paste0(output_dir,"/plot_ratio_imp_sexo_nosub.jpg"), -->
+<!--        plot_ratio_imp_sexo_nosub, width = 15, height = 10) -->
+
+<!-- ### 2. sex distributions #### -->
+<!-- plot_ratio_sexo_nosub <- ggplot(ratio_sexo.dt[ratio_missing < 1], aes(x = dataset, y = ratio_hombres, fill = dataset)) + -->
+<!--   geom_boxplot() + -->
+<!--   facet_grid(violencia ~ yy_hecho) + -->
+<!--   labs(x = '', y = 'Ratio de hombres\n') + -->
+<!--   theme_bw() + -->
+<!--   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) -->
+
+<!-- ggsave(paste0(output_dir,"/plot_ratio_sexo_nosub.jpg"), -->
+<!-- 			 plot_ratio_sexo_nosub, width = 15, height = 10) -->
+
+
+<!-- ``` -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
