@@ -112,7 +112,7 @@ Encode de las variables en cada grupo artificial (mismo codigo de la imputación
 
 impute_sexo_model <- function(data, output_file_prefix) {
   # Preparación de los datos
-  data <- data[
+  df <- data[
     , c('sexo', regressors_sexo), with = FALSE][
     , yy_hecho := as.numeric(yy_hecho)][
     , dept_code_hecho := as.numeric(dept_code_hecho)][
@@ -122,35 +122,35 @@ impute_sexo_model <- function(data, output_file_prefix) {
     is.na(p_str), p_str := '*']
 
   # Codificación de variables categóricas
-  macroregion_levels <- sort(unique(data$macroregion))
+  macroregion_levels <- sort(unique(df$macroregion))
   macroregion_enc <- seq_along(macroregion_levels) - 1
   names(macroregion_enc) <- macroregion_levels
   
-  violencia_levels <- sort(unique(data$violencia))
+  violencia_levels <- sort(unique(df$violencia))
   violencia_enc <- seq_along(violencia_levels) - 1
   names(violencia_enc) <- violencia_levels
   
-  pstr_levels <- sort(unique(data$p_str))
+  pstr_levels <- sort(unique(df$p_str))
   pstr_enc <- seq_along(pstr_levels) - 1
   names(pstr_enc) <- pstr_levels
   
-  etnia_levels <- sort(unique(data$etnia))
+  etnia_levels <- sort(unique(df$etnia))
   etnia_enc <- seq_along(etnia_levels) - 1
   names(etnia_enc) <- etnia_levels
   
-  edadCat_levels <- sort(unique(data$edad_categoria))
+  edadCat_levels <- sort(unique(df$edad_categoria))
   edadCat_enc <- seq_along(edadCat_levels) - 1
   names(edadCat_enc) <- edadCat_levels
   
-  edadJep_levels <- sort(unique(data$edad_jep))
+  edadJep_levels <- sort(unique(df$edad_jep))
   edadJep_enc <- seq_along(edadJep_levels) - 1
   names(edadJep_enc) <- edadJep_levels
   
-  sexo_levels <- sort(unique(data$sexo))
+  sexo_levels <- sort(unique(df$sexo))
   sexo_enc <- seq_along(sexo_levels) - 1
   names(sexo_enc) <- sexo_levels
 
-  data_enc.dt <- copy(data)[
+  data_enc.dt <- copy(df)[
     , sexo := sexo_enc[sexo]][
     , macroregion := macroregion_enc[macroregion]][
     , violencia := violencia_enc[violencia]][
@@ -219,7 +219,7 @@ impute_sexo_model <- function(data, output_file_prefix) {
   sexo_imp_enc <- data_sexo_enc_impute.dt$sexo
   sexo_imputed <- ifelse(sexo_imp_enc == 0, 'HOMBRE', 'MUJER')
 
-  data_sexo_imputed.dt <- copy(data)[
+  data_sexo_imputed.dt <- copy(df)[
     , sexo_imp := ifelse(is.na(sexo), TRUE, FALSE)][
     is.na(sexo), sexo := sexo_imputed]
 
@@ -230,7 +230,8 @@ impute_sexo_model <- function(data, output_file_prefix) {
   return(list(
     confMat_sexo_train = confMat_sexo_train,
     roc_sexo_train = roc_sexo_train,
-    prob_sexo_train = prob_sexo_train
+    prob_sexo_train = prob_sexo_train,
+    thrsh = thrsh
   ))
 }
 

@@ -173,6 +173,9 @@ roc_sexo_train.roc
 # Area under the curve: 0.954
 
 thrsh <- coords(roc_sexo_train.roc, 'best', best.method="closest.topleft")[["threshold"]]
+thrsh 
+#0.481733
+
 data_sexo_undersampl.dt[
   , prob_mujer := prob_sexo_train][
   , sexo_pred := ifelse(prob_mujer >= thrsh, 1, 0)]
@@ -201,7 +204,6 @@ confMat_sexo_train.lst$table
 #          1  6001 45136
 
 ```
-###
 
 
 Imputar sexo en los datos faltantes:

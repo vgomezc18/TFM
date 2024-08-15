@@ -95,8 +95,8 @@ plot_histmiss_macroregiones <- ggplot(data = data_histmiss, aes(x = Macroregione
 						vjust = -0.1, hjust = 0.5, 
 						position = position_stack(vjust = 0.5), 
 						size = 5, show.legend = FALSE) +
-	scale_fill_manual(values = c("#87CEEB", "red")) +
-	scale_color_manual(values = c("black", "white")) +
+	scale_fill_manual(values = c("#87CEEB", "#FD9A9A")) +
+	scale_color_manual(values = c("black", "black")) +
 	theme(panel.background = element_rect(fill = "white"),
 				axis.title = element_text(size = 12),
 				axis.text = element_text(size = 12),
@@ -158,8 +158,8 @@ plot_histmiss_periodo_pres <- ggplot(data = data_histmiss, aes(x = Periodo_Presi
 						vjust = -0.1, hjust = 0.5, 
 						position = position_stack(vjust = 0.5), 
 						size = 5, show.legend = FALSE) +
-	scale_fill_manual(values = c("#87CEEB", "red")) +
-	scale_color_manual(values = c("black", "white")) +
+	scale_fill_manual(values = c("#87CEEB", "#FD9A9A")) +
+	scale_color_manual(values = c("black", "black")) +
 	theme(panel.background = element_rect(fill = "white"),
 				axis.title = element_text(size = 12),
 				axis.text = element_text(size = 12),
