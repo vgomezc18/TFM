@@ -108,11 +108,16 @@ violencias_artificial_nas_5 <- data.dt %>%
 
 Encode de las variables en cada grupo artificial (mismo codigo de la imputación, pero lo realizo para cada grupo artificial con NAs que se ha generado antes): 
 
+
 ```{r}
 
-impute_sexo_model <- function(data, output_file_prefix) {
-  # Preparación de los datos
-  df <- data[
+# Definir la función para imputar sexo
+impute_sexo_model <- function(data, output_file_prefix, tipo_violencia) {
+  # Filtrar los datos por el tipo de violencia
+  data_filter <- data %>%
+    filter(violencia == tipo_violencia)
+  
+  df <- data_filter[
     , c('sexo', regressors_sexo), with = FALSE][
     , yy_hecho := as.numeric(yy_hecho)][
     , dept_code_hecho := as.numeric(dept_code_hecho)][
@@ -224,25 +229,122 @@ impute_sexo_model <- function(data, output_file_prefix) {
     is.na(sexo), sexo := sexo_imputed]
 
   # Guardar los datos imputados
-  saveRDS(data_sexo_imputed.dt, paste0(output_dir,"/", output_file_prefix, ".rds"))
+ # saveRDS(data_sexo_imputed.dt, paste0(output_dir,"/", output_file_prefix, ".rds"))
   
   # Retornar los objetos
   return(list(
     confMat_sexo_train = confMat_sexo_train,
     roc_sexo_train = roc_sexo_train,
     prob_sexo_train = prob_sexo_train,
-    thrsh = thrsh
+    thrsh = thrsh,
+    data_sexo_imputed.dt = data_sexo_imputed.dt
   ))
 }
 
-# Aplicar la función a cada grupo de datos
-result1 <- impute_sexo_model(violencias_artificial_nas_1, "artif_ml_sexo_light1")
-result2 <- impute_sexo_model(violencias_artificial_nas_2, "artif_ml_sexo_light2")
-result3 <- impute_sexo_model(violencias_artificial_nas_3, "artif_ml_sexo_light3")
-result4 <- impute_sexo_model(violencias_artificial_nas_4, "artif_ml_sexo_light4")
-result5 <- impute_sexo_model(violencias_artificial_nas_5, "artif_ml_sexo_light5")
+# Tipos de violencia a procesar
+tipos_violencia <- c("desaparicion", "homicidio", "reclutamiento", "secuestro")
+
+# Periodos de años a procesar
+periodos <- list(
+  c(1998, 2016)
+)
+
+# Lista para almacenar los resultados
+resultados_imputacion_sexo1 <- list()
+resultados_imputacion_sexo2 <- list()
+resultados_imputacion_sexo3 <- list()
+resultados_imputacion_sexo4 <- list()
+resultados_imputacion_sexo5 <- list()
+
+# Grupo 1
+
+# Procesar cada combinación de tipo de violencia y periodo de años
+for (tipo in tipos_violencia) {
+  for (periodo in periodos) {
+    start_year <- periodo[1]
+    end_year <- periodo[2]
+    data_filtrada <- violencias_artificial_nas_1 %>%
+      filter(violencia == tipo,
+             yy_hecho >= start_year & yy_hecho <= end_year)
+        resultado_imputacion1 <- impute_sexo_model(data_filtrada, paste0(tipo, "_", start_year, "_", end_year), tipo)
+        resultados_imputacion_sexo1[[paste(tipo, start_year, end_year, sep = "_")]] <- resultado_imputacion1
+  }
+}
+
+saveRDS(resultados_imputacion_sexo1, (paste0(output_dir,"/artif_ml_sexo_light1.rds")))
+
+# Grupo 2
+
+# Procesar cada combinación de tipo de violencia y periodo de años
+for (tipo in tipos_violencia) {
+  for (periodo in periodos) {
+    start_year <- periodo[1]
+    end_year <- periodo[2]
+    data_filtrada <- violencias_artificial_nas_2 %>%
+      filter(violencia == tipo,
+             yy_hecho >= start_year & yy_hecho <= end_year)
+        resultado_imputacion2 <- impute_sexo_model(data_filtrada, paste0(tipo, "_", start_year, "_", end_year), tipo)
+        resultados_imputacion_sexo2[[paste(tipo, start_year, end_year, sep = "_")]] <- resultado_imputacion2
+  }
+}
+
+saveRDS(resultados_imputacion_sexo2, (paste0(output_dir,"/artif_ml_sexo_light2.rds")))
+
+# Grupo 3
+
+# Procesar cada combinación de tipo de violencia y periodo de años
+for (tipo in tipos_violencia) {
+  for (periodo in periodos) {
+    start_year <- periodo[1]
+    end_year <- periodo[2]
+    data_filtrada <- violencias_artificial_nas_3 %>%
+      filter(violencia == tipo,
+             yy_hecho >= start_year & yy_hecho <= end_year)
+        resultado_imputacion3 <- impute_sexo_model(data_filtrada, paste0(tipo, "_", start_year, "_", end_year), tipo)
+        resultados_imputacion_sexo3[[paste(tipo, start_year, end_year, sep = "_")]] <- resultado_imputacion3
+  }
+}
+
+saveRDS(resultados_imputacion_sexo3, (paste0(output_dir,"/artif_ml_sexo_light3.rds")))
+
+# Grupo 4
+
+# Procesar cada combinación de tipo de violencia y periodo de años
+for (tipo in tipos_violencia) {
+  for (periodo in periodos) {
+    start_year <- periodo[1]
+    end_year <- periodo[2]
+    data_filtrada <- violencias_artificial_nas_4 %>%
+      filter(violencia == tipo,
+             yy_hecho >= start_year & yy_hecho <= end_year)
+        resultado_imputacion4 <- impute_sexo_model(data_filtrada, paste0(tipo, "_", start_year, "_", end_year), tipo)
+        resultados_imputacion_sexo4[[paste(tipo, start_year, end_year, sep = "_")]] <- resultado_imputacion4
+  }
+}
+
+saveRDS(resultados_imputacion_sexo4, (paste0(output_dir,"/artif_ml_sexo_light4.rds")))
+
+# Grupo 5
+
+# Procesar cada combinación de tipo de violencia y periodo de años
+for (tipo in tipos_violencia) {
+  for (periodo in periodos) {
+    start_year <- periodo[1]
+    end_year <- periodo[2]
+    data_filtrada <- violencias_artificial_nas_5 %>%
+      filter(violencia == tipo,
+             yy_hecho >= start_year & yy_hecho <= end_year)
+        resultado_imputacion5 <- impute_sexo_model(data_filtrada, paste0(tipo, "_", start_year, "_", end_year), tipo)
+        resultados_imputacion_sexo5[[paste(tipo, start_year, end_year, sep = "_")]] <- resultado_imputacion5
+  }
+}
+
+saveRDS(resultados_imputacion_sexo5, (paste0(output_dir,"/artif_ml_sexo_light5.rds")))
+
+
 
 ```
+
 
 Importo los resultados guardados (por si no se quiere volver a ejecutar toda la imputación anterior):
 
@@ -255,6 +357,7 @@ artif_ml_sexo_4 <- readRDS(paste0(output_dir,"/artif_ml_sexo_light4.rds"))
 artif_ml_sexo_5 <- readRDS(paste0(output_dir,"/artif_ml_sexo_light5.rds"))
 
 ```
+
 
 Función para indicadores de impacto de la detección y tratamiento de errores: 
 
@@ -283,43 +386,38 @@ observaciones_hombres <- "hombres_obs"
 
 ```
 
-# Desaparición:
+# Desaparición
 
 ```{r}
-artif_ml_sexo_desap1 <- artif_ml_sexo_1 %>% 
-	filter(violencia == "desaparicion" & yy_hecho >= 1998 & yy_hecho <= 2016) %>%
+artif_ml_sexo_desap1 <- artif_ml_sexo_1[["desaparicion_1998_2016"]][["data_sexo_imputed.dt"]] %>%
 	group_by(yy_hecho) %>%
 	summarise(
     hombres_ml1 = sum(sexo == "HOMBRE"),
     mujeres_ml1 = sum(sexo == "MUJER")) %>%
   arrange(yy_hecho)
 
-artif_ml_sexo_desap2 <- artif_ml_sexo_2 %>% 
-	filter(violencia == "desaparicion" & yy_hecho >= 1998 & yy_hecho <= 2016) %>%
+artif_ml_sexo_desap2 <- artif_ml_sexo_2[["desaparicion_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
 	group_by(yy_hecho) %>%
 	summarise(
     hombres_ml2 = sum(sexo == "HOMBRE"),
     mujeres_ml2 = sum(sexo == "MUJER")) %>%
   arrange(yy_hecho)
 
-artif_ml_sexo_desap3 <- artif_ml_sexo_3 %>% 
-	filter(violencia == "desaparicion" & yy_hecho >= 1998 & yy_hecho <= 2016) %>%
+artif_ml_sexo_desap3 <- artif_ml_sexo_3[["desaparicion_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
 	group_by(yy_hecho) %>%
 	summarise(
     hombres_ml3 = sum(sexo == "HOMBRE"),
     mujeres_ml3 = sum(sexo == "MUJER")) %>%
   arrange(yy_hecho)
 
-artif_ml_sexo_desap4 <- artif_ml_sexo_4 %>% 
-	filter(violencia == "desaparicion" & yy_hecho >= 1998 & yy_hecho <= 2016) %>%
+artif_ml_sexo_desap4 <- artif_ml_sexo_4[["desaparicion_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
 	group_by(yy_hecho) %>%
 	summarise(
     hombres_ml4 = sum(sexo == "HOMBRE"),
     mujeres_ml4 = sum(sexo == "MUJER")) %>%
   arrange(yy_hecho)
 
-artif_ml_sexo_desap5 <- artif_ml_sexo_5 %>% 
-	filter(violencia == "desaparicion" & yy_hecho >= 1998 & yy_hecho <= 2016) %>%
+artif_ml_sexo_desap5 <- artif_ml_sexo_5[["desaparicion_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
 	group_by(yy_hecho) %>%
 	summarise(
     hombres_ml5 = sum(sexo == "HOMBRE"),
@@ -357,20 +455,379 @@ Calcular el impacto:
 impacto_mujeres_desap <- calcular_impacto(ml_cols_mujeres, observaciones_mujeres, agregados_comparacion_desap)
 
 print(impacto_mujeres_desap$wai)
-print(impacto_mujeres_desap$mean_wai) #En promedio los valores imputados son mayores que los observados 1474.4
+print(impacto_mujeres_desap$mean_wai) #En promedio los valores imputados son mayores que los observados 1708.6
 print(impacto_mujeres_desap$wrai)
-print(impacto_mujeres_desap$mean_wrai) #Los valores imputados son en promedio un 52% diferentes de los observados
+print(impacto_mujeres_desap$mean_wrai) #Los valores imputados son en promedio un 61% diferentes de los observados
 
 
 #impacto para hombres
 impacto_hombres_desap <- calcular_impacto(ml_cols_hombres, observaciones_hombres, agregados_comparacion_desap)
 
 print(impacto_hombres_desap$wai)
-print(impacto_hombres_desap$mean_wai)#En promedio los valores imputados son menores que los observados -1474.4
+print(impacto_hombres_desap$mean_wai)#En promedio los valores imputados son menores que los observados -1708.6
 print(impacto_hombres_desap$wrai)
-print(impacto_hombres_desap$mean_wrai) #Los valores imputados son en promedio un -6.71% diferentes de los observados.
+print(impacto_hombres_desap$mean_wrai) #Los valores imputados son en promedio un -7.78% diferentes de los observados.
 
 ```
+Métricas de la matriz de confusión:
+
+```{r}
+
+model_names <- c("artif_ml_sexo_1", "artif_ml_sexo_2", "artif_ml_sexo_3", "artif_ml_sexo_4", "artif_ml_sexo_5")
+
+# métricas 
+extract_metrics <- function(model_name) {
+  model <- get(model_name)
+  metrics <- list(
+    Accuracy = model[["desaparicion_1998_2016"]][["confMat_sexo_train"]][["overall"]][["Accuracy"]],
+    Sensitivity = model[["desaparicion_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Sensitivity"]],
+    Specificity = model[["desaparicion_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Specificity"]],
+    Pos_Pred_Value = model[["desaparicion_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Pos Pred Value"]],
+    Neg_Pred_Value = model[["desaparicion_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Neg Pred Value"]],
+    Balanced_Accuracy = model[["desaparicion_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Balanced Accuracy"]]
+  )
+  return(metrics)
+}
+
+metrics_list_desap <- lapply(model_names, extract_metrics)
+metrics_df_desap <- do.call(rbind, lapply(metrics_list_desap, as.data.frame))
+mean_metrics_desap <- colMeans(metrics_df_desap, na.rm = TRUE)
+print(mean_metrics_desap)
+
+```
+# Homicidio
+
+```{r}
+artif_ml_sexo_homi1 <- artif_ml_sexo_1[["homicidio_1998_2016"]][["data_sexo_imputed.dt"]] %>%
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml1 = sum(sexo == "HOMBRE"),
+    mujeres_ml1 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+artif_ml_sexo_homi2 <- artif_ml_sexo_2[["homicidio_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml2 = sum(sexo == "HOMBRE"),
+    mujeres_ml2 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+artif_ml_sexo_homi3 <- artif_ml_sexo_3[["homicidio_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml3 = sum(sexo == "HOMBRE"),
+    mujeres_ml3 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+artif_ml_sexo_homi4 <- artif_ml_sexo_4[["homicidio_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml4 = sum(sexo == "HOMBRE"),
+    mujeres_ml4 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+artif_ml_sexo_homi5 <- artif_ml_sexo_5[["homicidio_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml5 = sum(sexo == "HOMBRE"),
+    mujeres_ml5 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+# Datos reales observados
+
+obs_sexo_homi <- data.dt %>%
+	filter(violencia == "homicidio" & yy_hecho >= 1998 & yy_hecho <= 2016) %>%
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_obs = sum(sexo == "HOMBRE"),
+    mujeres_obs = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+
+```
+
+Unión de reales e imputados para luego comparar:
+
+```{r}
+agregados_comparacion_homi <- obs_sexo_homi %>%
+	merge(artif_ml_sexo_homi1, by = c("yy_hecho")) %>%
+	merge(artif_ml_sexo_homi2, by = c("yy_hecho")) %>%
+	merge(artif_ml_sexo_homi3, by = c("yy_hecho")) %>%
+	merge(artif_ml_sexo_homi4, by = c("yy_hecho")) %>%
+	merge(artif_ml_sexo_homi5, by = c("yy_hecho"))
+```
+
+Calcular el impacto:
+```{r}
+
+# Impacto para mujeres
+impacto_mujeres_homi <- calcular_impacto(ml_cols_mujeres, observaciones_mujeres, agregados_comparacion_homi)
+
+print(impacto_mujeres_homi$wai)
+print(impacto_mujeres_homi$mean_wai) #En promedio los valores imputados son mayores que los observados 6484
+print(impacto_mujeres_homi$wrai)
+print(impacto_mujeres_homi$mean_wrai) #Los valores imputados son en promedio un 82% diferentes de los observados
+
+
+#impacto para hombres
+impacto_hombres_homi <- calcular_impacto(ml_cols_hombres, observaciones_hombres, agregados_comparacion_homi)
+
+print(impacto_hombres_homi$wai)
+print(impacto_hombres_homi$mean_wai)#En promedio los valores imputados son menores que los observados -6484
+print(impacto_hombres_homi$wrai)
+print(impacto_hombres_homi$mean_wrai) #Los valores imputados son en promedio un -8% diferentes de los observados.
+
+```
+Métricas de la matriz de confusión:
+
+```{r}
+
+model_names <- c("artif_ml_sexo_1", "artif_ml_sexo_2", "artif_ml_sexo_3", "artif_ml_sexo_4", "artif_ml_sexo_5")
+
+# métricas 
+extract_metrics <- function(model_name) {
+  model <- get(model_name)
+  metrics <- list(
+    Accuracy = model[["homicidio_1998_2016"]][["confMat_sexo_train"]][["overall"]][["Accuracy"]],
+    Sensitivity = model[["homicidio_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Sensitivity"]],
+    Specificity = model[["homicidio_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Specificity"]],
+    Pos_Pred_Value = model[["homicidio_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Pos Pred Value"]],
+    Neg_Pred_Value = model[["homicidio_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Neg Pred Value"]],
+    Balanced_Accuracy = model[["homicidio_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Balanced Accuracy"]]
+  )
+  return(metrics)
+}
+
+metrics_list_homi <- lapply(model_names, extract_metrics)
+metrics_df_homi <- do.call(rbind, lapply(metrics_list_homi, as.data.frame))
+mean_metrics_homi <- colMeans(metrics_df_homi, na.rm = TRUE)
+print(mean_metrics_homi)
+
+```
+
+# Reclutamiento
+
+```{r}
+artif_ml_sexo_reclu1 <- artif_ml_sexo_1[["reclutamiento_1998_2016"]][["data_sexo_imputed.dt"]] %>%
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml1 = sum(sexo == "HOMBRE"),
+    mujeres_ml1 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+artif_ml_sexo_reclu2 <- artif_ml_sexo_2[["reclutamiento_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml2 = sum(sexo == "HOMBRE"),
+    mujeres_ml2 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+artif_ml_sexo_reclu3 <- artif_ml_sexo_3[["reclutamiento_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml3 = sum(sexo == "HOMBRE"),
+    mujeres_ml3 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+artif_ml_sexo_reclu4 <- artif_ml_sexo_4[["reclutamiento_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml4 = sum(sexo == "HOMBRE"),
+    mujeres_ml4 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+artif_ml_sexo_reclu5 <- artif_ml_sexo_5[["reclutamiento_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml5 = sum(sexo == "HOMBRE"),
+    mujeres_ml5 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+# Datos reales observados
+
+obs_sexo_reclu <- data.dt %>%
+	filter(violencia == "reclutamiento" & yy_hecho >= 1998 & yy_hecho <= 2016) %>%
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_obs = sum(sexo == "HOMBRE"),
+    mujeres_obs = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+
+```
+
+Unión de reales e imputados para luego comparar:
+
+```{r}
+agregados_comparacion_reclu <- obs_sexo_reclu %>%
+	merge(artif_ml_sexo_reclu1, by = c("yy_hecho")) %>%
+	merge(artif_ml_sexo_reclu2, by = c("yy_hecho")) %>%
+	merge(artif_ml_sexo_reclu3, by = c("yy_hecho")) %>%
+	merge(artif_ml_sexo_reclu4, by = c("yy_hecho")) %>%
+	merge(artif_ml_sexo_reclu5, by = c("yy_hecho"))
+```
+
+Calcular el impacto:
+```{r}
+
+# Impacto para mujeres
+impacto_mujeres_reclu <- calcular_impacto(ml_cols_mujeres, observaciones_mujeres, agregados_comparacion_reclu)
+
+print(impacto_mujeres_reclu$wai)
+print(impacto_mujeres_reclu$mean_wai) #En promedio los valores imputados son mayores que los observados 234.8
+print(impacto_mujeres_reclu$wrai)
+print(impacto_mujeres_reclu$mean_wrai) #Los valores imputados son en promedio un 8% diferentes de los observados
+
+
+#impacto para hombres
+impacto_hombres_reclu <- calcular_impacto(ml_cols_hombres, observaciones_hombres, agregados_comparacion_reclu)
+
+print(impacto_hombres_reclu$wai)
+print(impacto_hombres_reclu$mean_wai)#En promedio los valores imputados son menores que los observados -234.8
+print(impacto_hombres_reclu$wrai)
+print(impacto_hombres_reclu$mean_wrai) #Los valores imputados son en promedio un -4% diferentes de los observados.
+
+```
+Métricas de la matriz de confusión:
+
+```{r}
+
+model_names <- c("artif_ml_sexo_1", "artif_ml_sexo_2", "artif_ml_sexo_3", "artif_ml_sexo_4", "artif_ml_sexo_5")
+
+# métricas 
+extract_metrics <- function(model_name) {
+  model <- get(model_name)
+  metrics <- list(
+    Accuracy = model[["reclutamiento_1998_2016"]][["confMat_sexo_train"]][["overall"]][["Accuracy"]],
+    Sensitivity = model[["reclutamiento_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Sensitivity"]],
+    Specificity = model[["reclutamiento_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Specificity"]],
+    Pos_Pred_Value = model[["reclutamiento_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Pos Pred Value"]],
+    Neg_Pred_Value = model[["reclutamiento_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Neg Pred Value"]],
+    Balanced_Accuracy = model[["reclutamiento_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Balanced Accuracy"]]
+  )
+  return(metrics)
+}
+
+metrics_list_reclu <- lapply(model_names, extract_metrics)
+metrics_df_reclu <- do.call(rbind, lapply(metrics_list_reclu, as.data.frame))
+mean_metrics_reclu <- colMeans(metrics_df_reclu, na.rm = TRUE)
+print(mean_metrics_reclu)
+
+```
+
+# Secuestro
+
+```{r}
+artif_ml_sexo_secue1 <- artif_ml_sexo_1[["secuestro_1998_2016"]][["data_sexo_imputed.dt"]] %>%
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml1 = sum(sexo == "HOMBRE"),
+    mujeres_ml1 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+artif_ml_sexo_secue2 <- artif_ml_sexo_2[["secuestro_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml2 = sum(sexo == "HOMBRE"),
+    mujeres_ml2 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+artif_ml_sexo_secue3 <- artif_ml_sexo_3[["secuestro_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml3 = sum(sexo == "HOMBRE"),
+    mujeres_ml3 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+artif_ml_sexo_secue4 <- artif_ml_sexo_4[["secuestro_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml4 = sum(sexo == "HOMBRE"),
+    mujeres_ml4 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+artif_ml_sexo_secue5 <- artif_ml_sexo_5[["secuestro_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_ml5 = sum(sexo == "HOMBRE"),
+    mujeres_ml5 = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+# Datos reales observados
+
+obs_sexo_secue <- data.dt %>%
+	filter(violencia == "secuestro" & yy_hecho >= 1998 & yy_hecho <= 2016) %>%
+	group_by(yy_hecho) %>%
+	summarise(
+    hombres_obs = sum(sexo == "HOMBRE"),
+    mujeres_obs = sum(sexo == "MUJER")) %>%
+  arrange(yy_hecho)
+
+
+```
+
+Unión de reales e imputados para luego comparar:
+
+```{r}
+agregados_comparacion_secue <- obs_sexo_secue %>%
+	merge(artif_ml_sexo_secue1, by = c("yy_hecho")) %>%
+	merge(artif_ml_sexo_secue2, by = c("yy_hecho")) %>%
+	merge(artif_ml_sexo_secue3, by = c("yy_hecho")) %>%
+	merge(artif_ml_sexo_secue4, by = c("yy_hecho")) %>%
+	merge(artif_ml_sexo_secue5, by = c("yy_hecho"))
+```
+
+Calcular el impacto:
+```{r}
+
+# Impacto para mujeres
+impacto_mujeres_secue <- calcular_impacto(ml_cols_mujeres, observaciones_mujeres, agregados_comparacion_secue)
+
+print(impacto_mujeres_secue$wai)
+print(impacto_mujeres_secue$mean_wai) #En promedio los valores imputados son mayores que los observados 710
+print(impacto_mujeres_secue$wrai)
+print(impacto_mujeres_secue$mean_wrai) #Los valores imputados son en promedio un 18% diferentes de los observados
+
+
+#impacto para hombres
+impacto_hombres_secue <- calcular_impacto(ml_cols_hombres, observaciones_hombres, agregados_comparacion_secue)
+
+print(impacto_hombres_secue$wai)
+print(impacto_hombres_secue$mean_wai)#En promedio los valores imputados son menores que los observados -710
+print(impacto_hombres_secue$wrai)
+print(impacto_hombres_secue$mean_wrai) #Los valores imputados son en promedio un -5% diferentes de los observados.
+
+```
+Métricas de la matriz de confusión:
+
+```{r}
+
+model_names <- c("artif_ml_sexo_1", "artif_ml_sexo_2", "artif_ml_sexo_3", "artif_ml_sexo_4", "artif_ml_sexo_5")
+
+# métricas 
+extract_metrics <- function(model_name) {
+  model <- get(model_name)
+  metrics <- list(
+    Accuracy = model[["secuestro_1998_2016"]][["confMat_sexo_train"]][["overall"]][["Accuracy"]],
+    Sensitivity = model[["secuestro_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Sensitivity"]],
+    Specificity = model[["secuestro_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Specificity"]],
+    Pos_Pred_Value = model[["secuestro_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Pos Pred Value"]],
+    Neg_Pred_Value = model[["secuestro_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Neg Pred Value"]],
+    Balanced_Accuracy = model[["secuestro_1998_2016"]][["confMat_sexo_train"]][["byClass"]][["Balanced Accuracy"]]
+  )
+  return(metrics)
+}
+
+metrics_list_secue <- lapply(model_names, extract_metrics)
+metrics_df_secue <- do.call(rbind, lapply(metrics_list_secue, as.data.frame))
+mean_metrics_secue <- colMeans(metrics_df_secue, na.rm = TRUE)
+print(mean_metrics_secue)
+
+```
+
+
+
+
 
 
 
