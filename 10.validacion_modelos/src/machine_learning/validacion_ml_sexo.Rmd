@@ -21,7 +21,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 require(pacman)
 p_load(here, tidyverse, dplyr, data.table, Matrix, vcd, xgboost, caret, ggplot2,
-			 pROC, lightgbm)
+			 pROC, lightgbm, flextable, officer)
 
 ```
 
@@ -34,7 +34,7 @@ output_dir <- here::here("10.validacion_modelos/output/machine_learning/sexo")
 data.dt <- readRDS(paste0(input_dir,"/violencias_unidas_aux.rds")) %>%
 	as.data.table()
 ```
-Se establecen los regresores que se utilizaran en el modelo
+Se establecen los regresores que se utilizaron en el modelo
 
 ```{r}
 # Prepare data (encodings)####
@@ -55,10 +55,11 @@ Me quedo con las observaciones que están completas:
 ```{r}
 data.dt<-data.dt[complete.cases(data.dt),]
 dim(data.dt)
+colSums(is.na(data.dt))
 
 ```
 
-Divido la base de datos en 5 grupos del mismo tamaño de manera aletoria: 
+Divido la base de datos en 5 grupos del mismo tamaño de manera aleatoria: 
 
 ```{r}
 set.seed(123)
@@ -75,31 +76,37 @@ Genero valores NA's para un grupo de cada violencia y dejo los otros 4 grupos co
 
 ```{r}
 violencias_artificial_nas_1 <- data.dt %>%
-	mutate(sexo = case_when(grupo == 1 ~ NA,
+	mutate(sexo_real = sexo,
+				 sexo = case_when(grupo == 1 ~ NA,
 													TRUE ~ sexo)) %>%
 	select(-grupo) %>%
 	as.data.table()
 
+
 violencias_artificial_nas_2 <- data.dt %>%
-	mutate(sexo = case_when(grupo == 2 ~ NA,
+	mutate(sexo_real = sexo,
+		sexo = case_when(grupo == 2 ~ NA,
 													TRUE ~ sexo)) %>%
 	select(-grupo) %>%
 	as.data.table()
 
 violencias_artificial_nas_3 <- data.dt %>%
-	mutate(sexo = case_when(grupo == 3 ~ NA,
+	mutate(sexo_real = sexo,
+		sexo = case_when(grupo == 3 ~ NA,
 													TRUE ~ sexo)) %>%
 	select(-grupo) %>%
 	as.data.table()
 
 violencias_artificial_nas_4 <- data.dt %>%
-	mutate(sexo = case_when(grupo == 4 ~ NA,
+	mutate(sexo_real = sexo,
+		sexo = case_when(grupo == 4 ~ NA,
 													TRUE ~ sexo)) %>%
 	select(-grupo) %>%
 	as.data.table()
 
 violencias_artificial_nas_5 <- data.dt %>%
-	mutate(sexo = case_when(grupo == 5 ~ NA,
+	mutate(sexo_real = sexo,
+		sexo = case_when(grupo == 5 ~ NA,
 													TRUE ~ sexo)) %>%
 	select(-grupo) %>%
 	as.data.table()
@@ -110,22 +117,20 @@ Encode de las variables en cada grupo artificial (mismo codigo de la imputación
 
 
 ```{r}
-
-# Definir la función para imputar sexo
 impute_sexo_model <- function(data, output_file_prefix, tipo_violencia) {
   # Filtrar los datos por el tipo de violencia
   data_filter <- data %>%
     filter(violencia == tipo_violencia)
   
   df <- data_filter[
-    , c('sexo', regressors_sexo), with = FALSE][
+    , c('sexo', 'sexo_real', regressors_sexo), with = FALSE][
     , yy_hecho := as.numeric(yy_hecho)][
     , dept_code_hecho := as.numeric(dept_code_hecho)][
     , muni_code_hecho := as.numeric(muni_code_hecho)][
     is.na(etnia), etnia := '*'][
     is.na(edad_categoria), edad_categoria := '*'][
     is.na(p_str), p_str := '*']
-
+  
   # Codificación de variables categóricas
   macroregion_levels <- sort(unique(df$macroregion))
   macroregion_enc <- seq_along(macroregion_levels) - 1
@@ -154,7 +159,7 @@ impute_sexo_model <- function(data, output_file_prefix, tipo_violencia) {
   sexo_levels <- sort(unique(df$sexo))
   sexo_enc <- seq_along(sexo_levels) - 1
   names(sexo_enc) <- sexo_levels
-
+  
   data_enc.dt <- copy(df)[
     , sexo := sexo_enc[sexo]][
     , macroregion := macroregion_enc[macroregion]][
@@ -179,7 +184,7 @@ impute_sexo_model <- function(data, output_file_prefix, tipo_violencia) {
 
   # Construcción del modelo
   data_sexo_train <- lgb.Dataset(
-    Matrix(as.matrix(data_sexo_undersampl.dt[, -1]), sparse = TRUE), 
+    Matrix(as.matrix(data_sexo_undersampl.dt[, -c(1,2)]), sparse = TRUE), 
     label = data_sexo_undersampl.dt$sexo,
     categorical_feature = c(1L, 2L, 3L, 6L, 8L, 9L, 10L, 11L)
   )
@@ -199,7 +204,7 @@ impute_sexo_model <- function(data, output_file_prefix, tipo_violencia) {
   )
 
   # Evaluación del modelo
-  prob_sexo_train <- predict(model_sexo_impute, Matrix(as.matrix(data_sexo_undersampl.dt[, -1]), sparse = TRUE))
+  prob_sexo_train <- predict(model_sexo_impute, Matrix(as.matrix(data_sexo_undersampl.dt[, -c(1,2)]), sparse = TRUE))
   roc_sexo_train <- roc(data_sexo_undersampl.dt$sexo, prob_sexo_train)
   
   thrsh <- coords(roc_sexo_train, 'best', best.method="closest.topleft")[["threshold"]]
@@ -214,7 +219,7 @@ impute_sexo_model <- function(data, output_file_prefix, tipo_violencia) {
   )
 
   # Imputar sexo en los datos faltantes
-  data_sexo_impute <- Matrix(as.matrix(data_sexo_enc_impute.dt[, -1]), sparse = TRUE)
+  data_sexo_impute <- Matrix(as.matrix(data_sexo_enc_impute.dt[, -c(1,2)]), sparse = TRUE)
   prob_sexo_impute <- predict(model_sexo_impute, data_sexo_impute)
 
   data_sexo_enc_impute.dt[
@@ -240,6 +245,8 @@ impute_sexo_model <- function(data, output_file_prefix, tipo_violencia) {
     data_sexo_imputed.dt = data_sexo_imputed.dt
   ))
 }
+
+
 
 # Tipos de violencia a procesar
 tipos_violencia <- c("desaparicion", "homicidio", "reclutamiento", "secuestro")
@@ -358,117 +365,103 @@ artif_ml_sexo_5 <- readRDS(paste0(output_dir,"/artif_ml_sexo_light5.rds"))
 
 ```
 
-
-Función para indicadores de impacto de la detección y tratamiento de errores: 
+Funciones para hacer descriptivos: 
 
 ```{r}
-
-# Calcular WAI y WRAI
-calcular_impacto <- function(ml_cols, observaciones, datos) {
-  wai <- sapply(ml_cols, function(col) sum(datos[[col]] - datos[[observaciones]]))
-  wrai <- sapply(ml_cols, function(col) sum(datos[[col]] - datos[[observaciones]]) / sum(datos[[observaciones]]))
+generate_indicators_summary <- function(data) {
+  required_cols <- c("diferentes", "wrai")
+  if (!all(required_cols %in% colnames(data))) {
+    stop("Faltan una o más columnas necesarias en los datos.")
+  }
   
-  list(
-    wai = wai,
-    mean_wai = mean(wai),
-    wrai = wrai,
-    mean_wrai = mean(wrai)
+  stats_summary <- data.table(
+    Metric = c("diferentes", "wrai"),
+    Min = c(
+      # round(min(data$iguales, na.rm = TRUE), 0),
+      round(min(data$diferentes, na.rm = TRUE), 0),
+      paste0(round(min(data$wrai, na.rm = TRUE)*100, 2), "%")
+    ),
+    `1st_Qu.` = c(
+      # round(quantile(data$iguales, 0.25, na.rm = TRUE), 0),
+      round(quantile(data$diferentes, 0.25, na.rm = TRUE), 0),
+      paste0(round(quantile(data$wrai, 0.25, na.rm = TRUE)*100, 2), "%")
+    ),
+    Median = c(
+      # round(median(data$iguales, na.rm = TRUE), 0),
+      round(median(data$diferentes, na.rm = TRUE), 0),
+      paste0(round(median(data$wrai, na.rm = TRUE)*100, 2), "%")
+    ),
+    Mean = c(
+      # round(mean(data$iguales, na.rm = TRUE), 0),
+      round(mean(data$diferentes, na.rm = TRUE), 0),
+      paste0(round(mean(data$wrai, na.rm = TRUE)*100, 2), "%")
+    ),
+    `3rd_Qu.` = c(
+      # round(quantile(data$iguales, 0.75, na.rm = TRUE), 0),
+      round(quantile(data$diferentes, 0.75, na.rm = TRUE), 0),
+      paste0(round(quantile(data$wrai, 0.75, na.rm = TRUE)*100, 2), "%")
+    ),
+    Max = c(
+      # round(max(data$iguales, na.rm = TRUE), 0),
+      round(max(data$diferentes, na.rm = TRUE), 0),
+      paste0(round(max(data$wrai, na.rm = TRUE)*100, 2), "%")
+    ),
+    SD = c(
+      # round(sd(data$iguales, na.rm = TRUE), 2),
+      round(sd(data$diferentes, na.rm = TRUE), 2),
+      paste0(round(sd(data$wrai, na.rm = TRUE)*100, 2), "%")
+    )
   )
+  
+  return(stats_summary)
 }
 
-# Columnas de mls y observaciones para mujeres
-ml_cols_mujeres <- paste0("mujeres_ml", 1:5)
-observaciones_mujeres <- "mujeres_obs"
 
-# Columnas de mls y observaciones para hombres
-ml_cols_hombres <- paste0("hombres_ml", 1:5)
-observaciones_hombres <- "hombres_obs"
+generate_cv_summary <- function(metrics_df) {
+  metrics_dt <- as.data.table(metrics_df)
+  
+  stats_summary <- data.table(
+    Metric = colnames(metrics_dt),
+    Min = paste0(sapply(metrics_dt, function(x) round(min(x, na.rm = TRUE)*100, 2)), "%"),
+    `1st_Qu.` = paste0(sapply(metrics_dt, function(x) round(quantile(x, 0.25, na.rm = TRUE)*100, 2)), "%"),
+    Median = paste0(sapply(metrics_dt, function(x) round(median(x, na.rm = TRUE)*100, 2)), "%"),
+    Mean = paste0(sapply(metrics_dt, function(x) round(mean(x, na.rm = TRUE)*100, 2)), "%"),
+    `3rd_Qu.` = paste0(sapply(metrics_dt, function(x) round(quantile(x, 0.75, na.rm = TRUE)*100, 2)), "%"),
+    Max = paste0(sapply(metrics_dt, function(x) round(max(x, na.rm = TRUE)*100, 2)), "%"),
+    SD = paste0(sapply(metrics_dt, function(x) round(sd(x, na.rm = TRUE)*100, 2)), "%")
+  )
+  
+  return(stats_summary)
+}
 
 ```
 
 # Desaparición
 
 ```{r}
-artif_ml_sexo_desap1 <- artif_ml_sexo_1[["desaparicion_1998_2016"]][["data_sexo_imputed.dt"]] %>%
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml1 = sum(sexo == "HOMBRE"),
-    mujeres_ml1 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
+comparison_data <- function(data, k_value) {
+  data[, .(
+    iguales = sum(sexo_real == sexo, na.rm = TRUE),
+    diferentes = sum(sexo_real != sexo, na.rm = TRUE),
+    k = k_value
+  )][, wrai := round(diferentes / (iguales + diferentes), 4)]
+}
 
-artif_ml_sexo_desap2 <- artif_ml_sexo_2[["desaparicion_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml2 = sum(sexo == "HOMBRE"),
-    mujeres_ml2 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
+comparison_desap1 <- comparison_data(artif_ml_sexo_1[["desaparicion_1998_2016"]][["data_sexo_imputed.dt"]], "1")
+comparison_desap2 <- comparison_data(artif_ml_sexo_2[["desaparicion_1998_2016"]][["data_sexo_imputed.dt"]], "2")
+comparison_desap3 <- comparison_data(artif_ml_sexo_3[["desaparicion_1998_2016"]][["data_sexo_imputed.dt"]], "3")
+comparison_desap4 <- comparison_data(artif_ml_sexo_4[["desaparicion_1998_2016"]][["data_sexo_imputed.dt"]], "4")
+comparison_desap5 <- comparison_data(artif_ml_sexo_5[["desaparicion_1998_2016"]][["data_sexo_imputed.dt"]], "5")
 
-artif_ml_sexo_desap3 <- artif_ml_sexo_3[["desaparicion_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml3 = sum(sexo == "HOMBRE"),
-    mujeres_ml3 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
+comparison_desap <- rbindlist(list(comparison_desap1, comparison_desap2, comparison_desap3, comparison_desap4, comparison_desap5)) %>%
+	select(k, iguales, diferentes, wrai)
 
-artif_ml_sexo_desap4 <- artif_ml_sexo_4[["desaparicion_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml4 = sum(sexo == "HOMBRE"),
-    mujeres_ml4 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
-
-artif_ml_sexo_desap5 <- artif_ml_sexo_5[["desaparicion_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml5 = sum(sexo == "HOMBRE"),
-    mujeres_ml5 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
-
-# Datos reales observados
-
-obs_sexo_desap <- data.dt %>%
-	filter(violencia == "desaparicion" & yy_hecho >= 1998 & yy_hecho <= 2016) %>%
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_obs = sum(sexo == "HOMBRE"),
-    mujeres_obs = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
-
+# Extraer estadísticos de los 5 folds
+stats_summary_desap <- generate_indicators_summary(comparison_desap)
+stats_summary_desap
 
 ```
 
-Unión de reales e imputados para luego comparar:
-
-```{r}
-agregados_comparacion_desap <- obs_sexo_desap %>%
-	merge(artif_ml_sexo_desap1, by = c("yy_hecho")) %>%
-	merge(artif_ml_sexo_desap2, by = c("yy_hecho")) %>%
-	merge(artif_ml_sexo_desap3, by = c("yy_hecho")) %>%
-	merge(artif_ml_sexo_desap4, by = c("yy_hecho")) %>%
-	merge(artif_ml_sexo_desap5, by = c("yy_hecho"))
-```
-
-Calcular el impacto:
-```{r}
-
-# Impacto para mujeres
-impacto_mujeres_desap <- calcular_impacto(ml_cols_mujeres, observaciones_mujeres, agregados_comparacion_desap)
-
-print(impacto_mujeres_desap$wai)
-print(impacto_mujeres_desap$mean_wai) #En promedio los valores imputados son mayores que los observados 1708.6
-print(impacto_mujeres_desap$wrai)
-print(impacto_mujeres_desap$mean_wrai) #Los valores imputados son en promedio un 61% diferentes de los observados
-
-
-#impacto para hombres
-impacto_hombres_desap <- calcular_impacto(ml_cols_hombres, observaciones_hombres, agregados_comparacion_desap)
-
-print(impacto_hombres_desap$wai)
-print(impacto_hombres_desap$mean_wai)#En promedio los valores imputados son menores que los observados -1708.6
-print(impacto_hombres_desap$wrai)
-print(impacto_hombres_desap$mean_wrai) #Los valores imputados son en promedio un -7.78% diferentes de los observados.
-
-```
 Métricas de la matriz de confusión:
 
 ```{r}
@@ -491,93 +484,39 @@ extract_metrics <- function(model_name) {
 
 metrics_list_desap <- lapply(model_names, extract_metrics)
 metrics_df_desap <- do.call(rbind, lapply(metrics_list_desap, as.data.frame))
-mean_metrics_desap <- colMeans(metrics_df_desap, na.rm = TRUE)
-print(mean_metrics_desap)
+
+
+metrics_cv_desap <- generate_cv_summary(metrics_df_desap)
+metrics_cv_desap
 
 ```
+
 # Homicidio
 
 ```{r}
-artif_ml_sexo_homi1 <- artif_ml_sexo_1[["homicidio_1998_2016"]][["data_sexo_imputed.dt"]] %>%
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml1 = sum(sexo == "HOMBRE"),
-    mujeres_ml1 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
+comparison_data <- function(data, k_value) {
+  data[, .(
+    iguales = sum(sexo_real == sexo, na.rm = TRUE),
+    diferentes = sum(sexo_real != sexo, na.rm = TRUE),
+    k = k_value
+  )][, wrai := round(diferentes / (iguales + diferentes), 4)]
+}
 
-artif_ml_sexo_homi2 <- artif_ml_sexo_2[["homicidio_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml2 = sum(sexo == "HOMBRE"),
-    mujeres_ml2 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
+comparison_homi1 <- comparison_data(artif_ml_sexo_1[["homicidio_1998_2016"]][["data_sexo_imputed.dt"]], "1")
+comparison_homi2 <- comparison_data(artif_ml_sexo_2[["homicidio_1998_2016"]][["data_sexo_imputed.dt"]], "2")
+comparison_homi3 <- comparison_data(artif_ml_sexo_3[["homicidio_1998_2016"]][["data_sexo_imputed.dt"]], "3")
+comparison_homi4 <- comparison_data(artif_ml_sexo_4[["homicidio_1998_2016"]][["data_sexo_imputed.dt"]], "4")
+comparison_homi5 <- comparison_data(artif_ml_sexo_5[["homicidio_1998_2016"]][["data_sexo_imputed.dt"]], "5")
 
-artif_ml_sexo_homi3 <- artif_ml_sexo_3[["homicidio_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml3 = sum(sexo == "HOMBRE"),
-    mujeres_ml3 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
+comparison_homi <- rbindlist(list(comparison_homi1, comparison_homi2, comparison_homi3, comparison_homi4, comparison_homi5)) %>%
+	select(k, iguales, diferentes, wrai)
 
-artif_ml_sexo_homi4 <- artif_ml_sexo_4[["homicidio_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml4 = sum(sexo == "HOMBRE"),
-    mujeres_ml4 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
-
-artif_ml_sexo_homi5 <- artif_ml_sexo_5[["homicidio_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml5 = sum(sexo == "HOMBRE"),
-    mujeres_ml5 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
-
-# Datos reales observados
-
-obs_sexo_homi <- data.dt %>%
-	filter(violencia == "homicidio" & yy_hecho >= 1998 & yy_hecho <= 2016) %>%
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_obs = sum(sexo == "HOMBRE"),
-    mujeres_obs = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
-
+# Extraer estadísticos de los 5 folds
+stats_summary_homi <- generate_indicators_summary(comparison_homi)
+stats_summary_homi
 
 ```
 
-Unión de reales e imputados para luego comparar:
-
-```{r}
-agregados_comparacion_homi <- obs_sexo_homi %>%
-	merge(artif_ml_sexo_homi1, by = c("yy_hecho")) %>%
-	merge(artif_ml_sexo_homi2, by = c("yy_hecho")) %>%
-	merge(artif_ml_sexo_homi3, by = c("yy_hecho")) %>%
-	merge(artif_ml_sexo_homi4, by = c("yy_hecho")) %>%
-	merge(artif_ml_sexo_homi5, by = c("yy_hecho"))
-```
-
-Calcular el impacto:
-```{r}
-
-# Impacto para mujeres
-impacto_mujeres_homi <- calcular_impacto(ml_cols_mujeres, observaciones_mujeres, agregados_comparacion_homi)
-
-print(impacto_mujeres_homi$wai)
-print(impacto_mujeres_homi$mean_wai) #En promedio los valores imputados son mayores que los observados 6484
-print(impacto_mujeres_homi$wrai)
-print(impacto_mujeres_homi$mean_wrai) #Los valores imputados son en promedio un 82% diferentes de los observados
-
-
-#impacto para hombres
-impacto_hombres_homi <- calcular_impacto(ml_cols_hombres, observaciones_hombres, agregados_comparacion_homi)
-
-print(impacto_hombres_homi$wai)
-print(impacto_hombres_homi$mean_wai)#En promedio los valores imputados son menores que los observados -6484
-print(impacto_hombres_homi$wrai)
-print(impacto_hombres_homi$mean_wrai) #Los valores imputados son en promedio un -8% diferentes de los observados.
-
-```
 Métricas de la matriz de confusión:
 
 ```{r}
@@ -600,94 +539,40 @@ extract_metrics <- function(model_name) {
 
 metrics_list_homi <- lapply(model_names, extract_metrics)
 metrics_df_homi <- do.call(rbind, lapply(metrics_list_homi, as.data.frame))
-mean_metrics_homi <- colMeans(metrics_df_homi, na.rm = TRUE)
-print(mean_metrics_homi)
+
+
+metrics_cv_homi <- generate_cv_summary(metrics_df_homi)
+metrics_cv_homi
 
 ```
+
 
 # Reclutamiento
 
 ```{r}
-artif_ml_sexo_reclu1 <- artif_ml_sexo_1[["reclutamiento_1998_2016"]][["data_sexo_imputed.dt"]] %>%
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml1 = sum(sexo == "HOMBRE"),
-    mujeres_ml1 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
+comparison_data <- function(data, k_value) {
+  data[, .(
+    iguales = sum(sexo_real == sexo, na.rm = TRUE),
+    diferentes = sum(sexo_real != sexo, na.rm = TRUE),
+    k = k_value
+  )][, wrai := round(diferentes / (iguales + diferentes), 4)]
+}
 
-artif_ml_sexo_reclu2 <- artif_ml_sexo_2[["reclutamiento_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml2 = sum(sexo == "HOMBRE"),
-    mujeres_ml2 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
+comparison_reclu1 <- comparison_data(artif_ml_sexo_1[["reclutamiento_1998_2016"]][["data_sexo_imputed.dt"]], "1")
+comparison_reclu2 <- comparison_data(artif_ml_sexo_2[["reclutamiento_1998_2016"]][["data_sexo_imputed.dt"]], "2")
+comparison_reclu3 <- comparison_data(artif_ml_sexo_3[["reclutamiento_1998_2016"]][["data_sexo_imputed.dt"]], "3")
+comparison_reclu4 <- comparison_data(artif_ml_sexo_4[["reclutamiento_1998_2016"]][["data_sexo_imputed.dt"]], "4")
+comparison_reclu5 <- comparison_data(artif_ml_sexo_5[["reclutamiento_1998_2016"]][["data_sexo_imputed.dt"]], "5")
 
-artif_ml_sexo_reclu3 <- artif_ml_sexo_3[["reclutamiento_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml3 = sum(sexo == "HOMBRE"),
-    mujeres_ml3 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
+comparison_reclu <- rbindlist(list(comparison_reclu1, comparison_reclu2, comparison_reclu3, comparison_reclu4, comparison_reclu5)) %>%
+	select(k, iguales, diferentes, wrai)
 
-artif_ml_sexo_reclu4 <- artif_ml_sexo_4[["reclutamiento_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml4 = sum(sexo == "HOMBRE"),
-    mujeres_ml4 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
-
-artif_ml_sexo_reclu5 <- artif_ml_sexo_5[["reclutamiento_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml5 = sum(sexo == "HOMBRE"),
-    mujeres_ml5 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
-
-# Datos reales observados
-
-obs_sexo_reclu <- data.dt %>%
-	filter(violencia == "reclutamiento" & yy_hecho >= 1998 & yy_hecho <= 2016) %>%
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_obs = sum(sexo == "HOMBRE"),
-    mujeres_obs = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
-
+# Extraer estadísticos de los 5 folds
+stats_summary_reclu <- generate_indicators_summary(comparison_reclu)
+stats_summary_reclu
 
 ```
 
-Unión de reales e imputados para luego comparar:
-
-```{r}
-agregados_comparacion_reclu <- obs_sexo_reclu %>%
-	merge(artif_ml_sexo_reclu1, by = c("yy_hecho")) %>%
-	merge(artif_ml_sexo_reclu2, by = c("yy_hecho")) %>%
-	merge(artif_ml_sexo_reclu3, by = c("yy_hecho")) %>%
-	merge(artif_ml_sexo_reclu4, by = c("yy_hecho")) %>%
-	merge(artif_ml_sexo_reclu5, by = c("yy_hecho"))
-```
-
-Calcular el impacto:
-```{r}
-
-# Impacto para mujeres
-impacto_mujeres_reclu <- calcular_impacto(ml_cols_mujeres, observaciones_mujeres, agregados_comparacion_reclu)
-
-print(impacto_mujeres_reclu$wai)
-print(impacto_mujeres_reclu$mean_wai) #En promedio los valores imputados son mayores que los observados 234.8
-print(impacto_mujeres_reclu$wrai)
-print(impacto_mujeres_reclu$mean_wrai) #Los valores imputados son en promedio un 8% diferentes de los observados
-
-
-#impacto para hombres
-impacto_hombres_reclu <- calcular_impacto(ml_cols_hombres, observaciones_hombres, agregados_comparacion_reclu)
-
-print(impacto_hombres_reclu$wai)
-print(impacto_hombres_reclu$mean_wai)#En promedio los valores imputados son menores que los observados -234.8
-print(impacto_hombres_reclu$wrai)
-print(impacto_hombres_reclu$mean_wrai) #Los valores imputados son en promedio un -4% diferentes de los observados.
-
-```
 Métricas de la matriz de confusión:
 
 ```{r}
@@ -710,94 +595,39 @@ extract_metrics <- function(model_name) {
 
 metrics_list_reclu <- lapply(model_names, extract_metrics)
 metrics_df_reclu <- do.call(rbind, lapply(metrics_list_reclu, as.data.frame))
-mean_metrics_reclu <- colMeans(metrics_df_reclu, na.rm = TRUE)
-print(mean_metrics_reclu)
+
+
+metrics_cv_reclu <- generate_cv_summary(metrics_df_reclu)
+metrics_cv_reclu
 
 ```
 
 # Secuestro
 
 ```{r}
-artif_ml_sexo_secue1 <- artif_ml_sexo_1[["secuestro_1998_2016"]][["data_sexo_imputed.dt"]] %>%
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml1 = sum(sexo == "HOMBRE"),
-    mujeres_ml1 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
+comparison_data <- function(data, k_value) {
+  data[, .(
+    iguales = sum(sexo_real == sexo, na.rm = TRUE),
+    diferentes = sum(sexo_real != sexo, na.rm = TRUE),
+    k = k_value
+  )][, wrai := round(diferentes / (iguales + diferentes), 4)]
+}
 
-artif_ml_sexo_secue2 <- artif_ml_sexo_2[["secuestro_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml2 = sum(sexo == "HOMBRE"),
-    mujeres_ml2 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
+comparison_secue1 <- comparison_data(artif_ml_sexo_1[["secuestro_1998_2016"]][["data_sexo_imputed.dt"]], "1")
+comparison_secue2 <- comparison_data(artif_ml_sexo_2[["secuestro_1998_2016"]][["data_sexo_imputed.dt"]], "2")
+comparison_secue3 <- comparison_data(artif_ml_sexo_3[["secuestro_1998_2016"]][["data_sexo_imputed.dt"]], "3")
+comparison_secue4 <- comparison_data(artif_ml_sexo_4[["secuestro_1998_2016"]][["data_sexo_imputed.dt"]], "4")
+comparison_secue5 <- comparison_data(artif_ml_sexo_5[["secuestro_1998_2016"]][["data_sexo_imputed.dt"]], "5")
 
-artif_ml_sexo_secue3 <- artif_ml_sexo_3[["secuestro_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml3 = sum(sexo == "HOMBRE"),
-    mujeres_ml3 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
+comparison_secue <- rbindlist(list(comparison_secue1, comparison_secue2, comparison_secue3, comparison_secue4, comparison_secue5)) %>%
+	select(k, iguales, diferentes, wrai)
 
-artif_ml_sexo_secue4 <- artif_ml_sexo_4[["secuestro_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml4 = sum(sexo == "HOMBRE"),
-    mujeres_ml4 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
-
-artif_ml_sexo_secue5 <- artif_ml_sexo_5[["secuestro_1998_2016"]][["data_sexo_imputed.dt"]] %>% 
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_ml5 = sum(sexo == "HOMBRE"),
-    mujeres_ml5 = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
-
-# Datos reales observados
-
-obs_sexo_secue <- data.dt %>%
-	filter(violencia == "secuestro" & yy_hecho >= 1998 & yy_hecho <= 2016) %>%
-	group_by(yy_hecho) %>%
-	summarise(
-    hombres_obs = sum(sexo == "HOMBRE"),
-    mujeres_obs = sum(sexo == "MUJER")) %>%
-  arrange(yy_hecho)
-
+# Extraer estadísticos de los 5 folds
+stats_summary_secue <- generate_indicators_summary(comparison_secue)
+stats_summary_secue
 
 ```
 
-Unión de reales e imputados para luego comparar:
-
-```{r}
-agregados_comparacion_secue <- obs_sexo_secue %>%
-	merge(artif_ml_sexo_secue1, by = c("yy_hecho")) %>%
-	merge(artif_ml_sexo_secue2, by = c("yy_hecho")) %>%
-	merge(artif_ml_sexo_secue3, by = c("yy_hecho")) %>%
-	merge(artif_ml_sexo_secue4, by = c("yy_hecho")) %>%
-	merge(artif_ml_sexo_secue5, by = c("yy_hecho"))
-```
-
-Calcular el impacto:
-```{r}
-
-# Impacto para mujeres
-impacto_mujeres_secue <- calcular_impacto(ml_cols_mujeres, observaciones_mujeres, agregados_comparacion_secue)
-
-print(impacto_mujeres_secue$wai)
-print(impacto_mujeres_secue$mean_wai) #En promedio los valores imputados son mayores que los observados 710
-print(impacto_mujeres_secue$wrai)
-print(impacto_mujeres_secue$mean_wrai) #Los valores imputados son en promedio un 18% diferentes de los observados
-
-
-#impacto para hombres
-impacto_hombres_secue <- calcular_impacto(ml_cols_hombres, observaciones_hombres, agregados_comparacion_secue)
-
-print(impacto_hombres_secue$wai)
-print(impacto_hombres_secue$mean_wai)#En promedio los valores imputados son menores que los observados -710
-print(impacto_hombres_secue$wrai)
-print(impacto_hombres_secue$mean_wrai) #Los valores imputados son en promedio un -5% diferentes de los observados.
-
-```
 Métricas de la matriz de confusión:
 
 ```{r}
@@ -820,20 +650,12 @@ extract_metrics <- function(model_name) {
 
 metrics_list_secue <- lapply(model_names, extract_metrics)
 metrics_df_secue <- do.call(rbind, lapply(metrics_list_secue, as.data.frame))
-mean_metrics_secue <- colMeans(metrics_df_secue, na.rm = TRUE)
-print(mean_metrics_secue)
+
+
+metrics_cv_secue <- generate_cv_summary(metrics_df_secue)
+metrics_cv_secue
 
 ```
-
-
-
-
-
-
-
-
-
-
 
 
 
