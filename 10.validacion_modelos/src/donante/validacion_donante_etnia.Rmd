@@ -225,39 +225,130 @@ artif_donante_etnia_5 <- readRDS(paste0(output_dir,"/artif_donante_etnia_5.rds")
 
 ```
 
-Función para indicadores de impacto de la detección y tratamiento de errores: 
+Funciones para hacer descriptivos: 
 
 ```{r}
-
-# Calcular WAI y WRAI
-calcular_impacto <- function(donante_cols, observaciones, datos) {
-  wai <- sapply(donante_cols, function(col) sum(datos[[col]] - datos[[observaciones]]))
-  wrai <- sapply(donante_cols, function(col) sum(datos[[col]] - datos[[observaciones]]) / sum(datos[[observaciones]]))
+# Para generar matriz de confusión
+generate_cv_summary <- function(metrics_df) {
+  metrics_dt <- as.data.table(metrics_df)
+  summary_list <- list()
+  clases <- unique(metrics_dt$Clase)
   
-  list(
-    wai = wai,
-    mean_wai = mean(wai),
-    wrai = wrai,
-    mean_wrai = mean(wrai)
-  )
+  for (clase in clases) {
+    class_metrics_dt <- metrics_dt[Clase == clase]
+    
+    stats_summary <- data.table(
+      Clase = clase,
+      Metric = colnames(class_metrics_dt)[-(1:2)],  # Excluir las primeras dos columnas (Donante_Col y Clase)
+      Min = paste0(sapply(class_metrics_dt[, -c("Donante_Col", "Clase"), with = FALSE], function(x) round(min(x, na.rm = TRUE) * 100, 2)), "%"),
+      `1st_Qu.` = paste0(sapply(class_metrics_dt[, -c("Donante_Col", "Clase"), with = FALSE], function(x) round(quantile(x, 0.25, na.rm = TRUE) * 100, 2)), "%"),
+      Median = paste0(sapply(class_metrics_dt[, -c("Donante_Col", "Clase"), with = FALSE], function(x) round(median(x, na.rm = TRUE) * 100, 2)), "%"),
+      Mean = paste0(sapply(class_metrics_dt[, -c("Donante_Col", "Clase"), with = FALSE], function(x) round(mean(x, na.rm = TRUE) * 100, 2)), "%"),
+      `3rd_Qu.` = paste0(sapply(class_metrics_dt[, -c("Donante_Col", "Clase"), with = FALSE], function(x) round(quantile(x, 0.75, na.rm = TRUE) * 100, 2)), "%"),
+      Max = paste0(sapply(class_metrics_dt[, -c("Donante_Col", "Clase"), with = FALSE], function(x) round(max(x, na.rm = TRUE) * 100, 2)), "%"),
+      SD = paste0(sapply(class_metrics_dt[, -c("Donante_Col", "Clase"), with = FALSE], function(x) round(sd(x, na.rm = TRUE) * 100, 2)), "%")
+    )
+    
+    summary_list[[clase]] <- stats_summary
+  }
+  
+  final_summary <- rbindlist(summary_list)
+  
+  return(final_summary)
+}
+
+# Para generar data con wai y wrai
+comparison_data <- function(data) {
+  results_list <- list()
+  categorias_etnia <- unique(data$etnia_obs)
+  for (categoria in categorias_etnia) {
+    data_filtrada <- data[etnia_obs == categoria]
+    
+    for (i in 1:5) {
+      donor_col <- paste0("etnia_donante", i)
+      
+      result <- data_filtrada[, .(
+        iguales = sum(etnia_obs == get(donor_col), na.rm = TRUE),
+        diferentes = sum(etnia_obs != get(donor_col), na.rm = TRUE),
+        donante = donor_col 
+      )]
+      
+      result[, wrai := round(diferentes / (iguales + diferentes), 4)]
+      result[, categoria := categoria] 
+      results_list[[paste0(categoria, "_", i)]] <- result
+    }
+  }
+  
+  final_result <- rbindlist(results_list)
+  return(final_result)
 }
 
 
-# Columnas de donantes y observaciones para Mestizo
-donante_cols_mestizo <- paste0("mestizo_donante", 1:5)
-observaciones_mestizo <- "mestizo_obs"
-
-# Columnas de donantes y observaciones para NARP
-donante_cols_narp <- paste0("narp_donante", 1:5)
-observaciones_narp <- "narp_obs"
-
-# Columnas de donantes y observaciones para indigena
-donante_cols_indigena <- paste0("indigena_donante", 1:5)
-observaciones_indigena <- "indigena_obs"
-
-# Columnas de donantes y observaciones para rrom
-donante_cols_rrom <- paste0("rrom_donante", 1:5)
-observaciones_rrom <- "rrom_obs"
+# Para descriptivos de WAI y WRAI de los 5 folds y de cada clase
+generate_indicators_summary_by_class <- function(data) {
+  # Verificar que las columnas necesarias están presentes
+  required_cols <- c("categoria", "diferentes", "wrai")
+  if (!all(required_cols %in% colnames(data))) {
+    stop("Faltan una o más columnas necesarias en los datos.")
+  }
+  
+  # Convertir el data frame en data.table
+  data_dt <- as.data.table(data)
+  
+  # Inicializar una lista para almacenar los resúmenes por etnia
+  summary_list <- list()
+  
+  # Agrupar por etnia
+  etnias <- unique(data_dt$categoria)
+  
+  # Iterar sobre cada etnia
+  for (etnia in etnias) {
+    # Filtrar los datos correspondientes a la etnia actual
+    etnia_data <- data_dt[categoria == etnia]
+    
+    # Calcular el resumen estadístico para cada métrica dentro de esta etnia
+    stats_summary <- data.table(
+      Etnia = etnia,
+      Metric = c("diferentes", "wrai"),
+      Min = c(
+        round(min(etnia_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(min(etnia_data$wrai, na.rm = TRUE) * 100, 2), "%")
+      ),
+      `1st_Qu.` = c(
+        round(quantile(etnia_data$diferentes, 0.25, na.rm = TRUE), 0),
+        paste0(round(quantile(etnia_data$wrai, 0.25, na.rm = TRUE) * 100, 2), "%")
+      ),
+      Median = c(
+        round(median(etnia_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(median(etnia_data$wrai, na.rm = TRUE) * 100, 2), "%")
+      ),
+      Mean = c(
+        round(mean(etnia_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(mean(etnia_data$wrai, na.rm = TRUE) * 100, 2), "%")
+      ),
+      `3rd_Qu.` = c(
+        round(quantile(etnia_data$diferentes, 0.75, na.rm = TRUE), 0),
+        paste0(round(quantile(etnia_data$wrai, 0.75, na.rm = TRUE) * 100, 2), "%")
+      ),
+      Max = c(
+        round(max(etnia_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(max(etnia_data$wrai, na.rm = TRUE) * 100, 2), "%")
+      ),
+      SD = c(
+        round(sd(etnia_data$diferentes, na.rm = TRUE), 2),
+        paste0(round(sd(etnia_data$wrai, na.rm = TRUE) * 100, 2), "%")
+      )
+    )
+    
+    # Agregar el resumen estadístico de esta etnia a la lista
+    summary_list[[etnia]] <- stats_summary
+  }
+  
+  # Combinar todos los resúmenes en un solo data.table
+  final_summary <- rbindlist(summary_list)
+  
+  return(final_summary)
+}
 
 ```
 
@@ -289,7 +380,8 @@ comparacion_desap <- complete_violencias_unidas_aux %>%
 	merge(artif_donante_etnia_desap4, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
 	mutate(etnia_donante4 = as.factor(etnia_donante)) %>% select(-etnia_donante) %>%
 	merge(artif_donante_etnia_desap5, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
-	mutate(etnia_donante5 = as.factor(etnia_donante)) %>% select(-etnia_donante)
+	mutate(etnia_donante5 = as.factor(etnia_donante)) %>% select(-etnia_donante) %>%
+	as.data.table()
 
 ```
 
@@ -299,120 +391,49 @@ Matriz de confusión:
 # Columnas a comparar
 donante_cols <- c("etnia_donante1", "etnia_donante2", "etnia_donante3", "etnia_donante4", "etnia_donante5")
 
+# listas para guardar métricas
 metrics_list <- list()
-sensitivity_list <- c()
-specificity_list <- c()
-pos_pred_value_list <- c()
-neg_pred_value_list <- c()
-balanced_accuracy_list <- c()
 
-# Calcular matrices de confusión 
+# Calcular matrices de confusión
 for (col in donante_cols) {
   conf_matrix <- confusionMatrix(comparacion_desap[[col]], comparacion_desap$etnia_obs)
   
-  # Guardar métricas generales
-  metrics_list[[col]] <- conf_matrix$overall
+  # Extraer clases
+  clases <- rownames(conf_matrix$byClass)
   
-  # Guardar métricas específicas
-  sensitivity_list <- c(sensitivity_list, conf_matrix$byClass[, "Sensitivity"])
-  specificity_list <- c(specificity_list, conf_matrix$byClass[, "Specificity"])
-  pos_pred_value_list <- c(pos_pred_value_list, conf_matrix$byClass[, "Pos Pred Value"])
-  neg_pred_value_list <- c(neg_pred_value_list, conf_matrix$byClass[, "Neg Pred Value"])
-  balanced_accuracy_list <- c(balanced_accuracy_list, conf_matrix$byClass[, "Balanced Accuracy"])
-
+  # Crear un data frame temporal para guardar métricas con etiquetas de clase y con columna donante
+  temp_df <- data.frame(
+    Donante_Col = col,
+    Clase = clases,
+    Accuracy = rep(conf_matrix$overall["Accuracy"], length(clases)),
+    Sensitivity = conf_matrix$byClass[, "Sensitivity"],
+    Specificity = conf_matrix$byClass[, "Specificity"],
+    Pos_Pred_Value = conf_matrix$byClass[, "Pos Pred Value"],
+    Neg_Pred_Value = conf_matrix$byClass[, "Neg Pred Value"],
+    Balanced_Accuracy = conf_matrix$byClass[, "Balanced Accuracy"]
+  )
+  
+  # Agregar el data frame temporal a la lista
+  metrics_list[[col]] <- temp_df
 }
 
-# Crear un data frame con las métricas de cada matriz de confusión
-metrics_df_desap <- data.frame(
-  Accuracy = unname(sapply(metrics_list, function(x) x["Accuracy"])),
-  Sensitivity = sensitivity_list,
-  Specificity = specificity_list,
-  Pos_Pred_Value = pos_pred_value_list,
-  Neg_Pred_Value = neg_pred_value_list,
-  Balanced_Accuracy = balanced_accuracy_list
-)
+# Combinar todos los data frames en uno solo
+metrics_df_desap <- do.call(rbind, metrics_list)
 
-# Calcular la media de las métricas
-mean_metrics_desap <- colMeans(metrics_df_desap)
-mean_metrics_desap
 
-```
-Base de datos con observados e imputados: 
-
-```{r}
-
-agregados_comparacion_desap <- comparacion_desap %>%
-  group_by(yy_hecho) %>%
-  summarise(
-
-  	mestizo_obs = sum(etnia_obs == "MESTIZO"),
-    mestizo_donante1 = sum(etnia_donante1 == "MESTIZO"),
-    mestizo_donante2 = sum(etnia_donante2 == "MESTIZO"),
-    mestizo_donante3 = sum(etnia_donante3 == "MESTIZO"),
-    mestizo_donante4 = sum(etnia_donante4 == "MESTIZO"),
-    mestizo_donante5 = sum(etnia_donante5 == "MESTIZO"),
-    
-    narp_obs = sum(etnia_obs == "NARP"),
-    narp_donante1 = sum(etnia_donante1 == "NARP"),
-    narp_donante2 = sum(etnia_donante2 == "NARP"),
-    narp_donante3 = sum(etnia_donante3 == "NARP"),
-    narp_donante4 = sum(etnia_donante4 == "NARP"),
-    narp_donante5 = sum(etnia_donante5 == "NARP"),
-    
-    indigena_obs = sum(etnia_obs == "INDIGENA"),
-    indigena_donante1 = sum(etnia_donante1 == "INDIGENA"),
-    indigena_donante2 = sum(etnia_donante2 == "INDIGENA"),
-    indigena_donante3 = sum(etnia_donante3 == "INDIGENA"),
-    indigena_donante4 = sum(etnia_donante4 == "INDIGENA"),
-    indigena_donante5 = sum(etnia_donante5 == "INDIGENA"),
-    
-    rrom_obs = sum(etnia_obs == "ROM"),
-    rrom_donante1 = sum(etnia_donante1 == "ROM"),
-    rrom_donante2 = sum(etnia_donante2 == "ROM"),
-    rrom_donante3 = sum(etnia_donante3 == "ROM"),
-    rrom_donante4 = sum(etnia_donante4 == "ROM"),
-    rrom_donante5 = sum(etnia_donante5 == "ROM")
-  	
-  ) %>%
-  arrange(yy_hecho)
+metrics_cv_desap <- generate_cv_summary(metrics_df_desap)
+metrics_cv_desap
 
 ```
 
-
-Calcular el impacto:
+WAI y WRAI:
 ```{r}
+comparison_desap_stat <- comparison_data(comparacion_desap)
 
-# Impacto para mestizo
-impacto_mestizo_desap <- calcular_impacto(donante_cols_mestizo, observaciones_mestizo, agregados_comparacion_desap)
+# Extraer estadísticos de los 5 folds
+stats_summary_desap <- generate_indicators_summary_by_class(comparison_desap_stat)
+stats_summary_desap
 
-print(impacto_mestizo_desap$wai)
-print(impacto_mestizo_desap$mean_wai) 
-print(impacto_mestizo_desap$wrai)
-print(impacto_mestizo_desap$mean_wrai) 
-
-# Impacto para narp
-impacto_narp_desap <- calcular_impacto(donante_cols_narp, observaciones_narp, agregados_comparacion_desap)
-
-print(impacto_narp_desap$wai)
-print(impacto_narp_desap$mean_wai) 
-print(impacto_narp_desap$wrai)
-print(impacto_narp_desap$mean_wrai) 
-
-# Impacto para indigena
-impacto_indigena_desap <- calcular_impacto(donante_cols_indigena, observaciones_indigena, agregados_comparacion_desap)
-
-print(impacto_indigena_desap$wai)
-print(impacto_indigena_desap$mean_wai) 
-print(impacto_indigena_desap$wrai)
-print(impacto_indigena_desap$mean_wrai) 
-
-# Impacto para rrom
-impacto_rrom_desap <- calcular_impacto(donante_cols_rrom, observaciones_rrom, agregados_comparacion_desap)
-
-print(impacto_rrom_desap$wai)
-print(impacto_rrom_desap$mean_wai) 
-print(impacto_rrom_desap$wrai)
-print(impacto_rrom_desap$mean_wrai) 
 ```
 
 # Homicidio:
@@ -442,7 +463,8 @@ comparacion_homi <- complete_violencias_unidas_aux %>%
 	merge(artif_donante_etnia_homi4, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
 	mutate(etnia_donante4 = as.factor(etnia_donante)) %>% select(-etnia_donante) %>%
 	merge(artif_donante_etnia_homi5, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
-	mutate(etnia_donante5 = as.factor(etnia_donante)) %>% select(-etnia_donante)
+	mutate(etnia_donante5 = as.factor(etnia_donante)) %>% select(-etnia_donante) %>%
+	as.data.table()
 
 ```
 
@@ -452,120 +474,47 @@ Matriz de confusión:
 # Columnas a comparar
 donante_cols <- c("etnia_donante1", "etnia_donante2", "etnia_donante3", "etnia_donante4", "etnia_donante5")
 
+# Inicializar listas para almacenar métricas
 metrics_list <- list()
-sensitivity_list <- c()
-specificity_list <- c()
-pos_pred_value_list <- c()
-neg_pred_value_list <- c()
-balanced_accuracy_list <- c()
 
-# Calcular matrices de confusión 
+# Calcular matrices de confusión y almacenar métricas con etiquetas de clase
 for (col in donante_cols) {
   conf_matrix <- confusionMatrix(comparacion_homi[[col]], comparacion_homi$etnia_obs)
   
-  # Guardar métricas generales
-  metrics_list[[col]] <- conf_matrix$overall
+  # Extraer clases
+  clases <- rownames(conf_matrix$byClass)
   
-  # Guardar métricas específicas
-  sensitivity_list <- c(sensitivity_list, conf_matrix$byClass[, "Sensitivity"])
-  specificity_list <- c(specificity_list, conf_matrix$byClass[, "Specificity"])
-  pos_pred_value_list <- c(pos_pred_value_list, conf_matrix$byClass[, "Pos Pred Value"])
-  neg_pred_value_list <- c(neg_pred_value_list, conf_matrix$byClass[, "Neg Pred Value"])
-  balanced_accuracy_list <- c(balanced_accuracy_list, conf_matrix$byClass[, "Balanced Accuracy"])
-
+  # Crear un data frame temporal para almacenar métricas con etiquetas de clase y columna donante
+  temp_df <- data.frame(
+    Donante_Col = col,
+    Clase = clases,
+    Accuracy = rep(conf_matrix$overall["Accuracy"], length(clases)),
+    Sensitivity = conf_matrix$byClass[, "Sensitivity"],
+    Specificity = conf_matrix$byClass[, "Specificity"],
+    Pos_Pred_Value = conf_matrix$byClass[, "Pos Pred Value"],
+    Neg_Pred_Value = conf_matrix$byClass[, "Neg Pred Value"],
+    Balanced_Accuracy = conf_matrix$byClass[, "Balanced Accuracy"]
+  )
+  
+  # Agregar el data frame temporal a la lista
+  metrics_list[[col]] <- temp_df
 }
 
-# Crear un data frame con las métricas de cada matriz de confusión
-metrics_df_homi <- data.frame(
-  Accuracy = unname(sapply(metrics_list, function(x) x["Accuracy"])),
-  Sensitivity = sensitivity_list,
-  Specificity = specificity_list,
-  Pos_Pred_Value = pos_pred_value_list,
-  Neg_Pred_Value = neg_pred_value_list,
-  Balanced_Accuracy = balanced_accuracy_list
-)
+# Combinar todos los data frames en uno solo
+metrics_df_homi <- do.call(rbind, metrics_list)
 
-# Calcular la media de las métricas
-mean_metrics_homi <- colMeans(metrics_df_homi)
-mean_metrics_homi
+metrics_cv_homi <- generate_cv_summary(metrics_df_homi)
+metrics_cv_homi
+
 
 ```
-Base de datos con observados e imputados: 
-
+WAI y WRAI:
 ```{r}
+comparison_homi_stat <- comparison_data(comparacion_homi)
 
-agregados_comparacion_homi <- comparacion_homi %>%
-  group_by(yy_hecho) %>%
-  summarise(
-
-  	mestizo_obs = sum(etnia_obs == "MESTIZO"),
-    mestizo_donante1 = sum(etnia_donante1 == "MESTIZO"),
-    mestizo_donante2 = sum(etnia_donante2 == "MESTIZO"),
-    mestizo_donante3 = sum(etnia_donante3 == "MESTIZO"),
-    mestizo_donante4 = sum(etnia_donante4 == "MESTIZO"),
-    mestizo_donante5 = sum(etnia_donante5 == "MESTIZO"),
-    
-    narp_obs = sum(etnia_obs == "NARP"),
-    narp_donante1 = sum(etnia_donante1 == "NARP"),
-    narp_donante2 = sum(etnia_donante2 == "NARP"),
-    narp_donante3 = sum(etnia_donante3 == "NARP"),
-    narp_donante4 = sum(etnia_donante4 == "NARP"),
-    narp_donante5 = sum(etnia_donante5 == "NARP"),
-    
-    indigena_obs = sum(etnia_obs == "INDIGENA"),
-    indigena_donante1 = sum(etnia_donante1 == "INDIGENA"),
-    indigena_donante2 = sum(etnia_donante2 == "INDIGENA"),
-    indigena_donante3 = sum(etnia_donante3 == "INDIGENA"),
-    indigena_donante4 = sum(etnia_donante4 == "INDIGENA"),
-    indigena_donante5 = sum(etnia_donante5 == "INDIGENA"),
-    
-    rrom_obs = sum(etnia_obs == "ROM"),
-    rrom_donante1 = sum(etnia_donante1 == "ROM"),
-    rrom_donante2 = sum(etnia_donante2 == "ROM"),
-    rrom_donante3 = sum(etnia_donante3 == "ROM"),
-    rrom_donante4 = sum(etnia_donante4 == "ROM"),
-    rrom_donante5 = sum(etnia_donante5 == "ROM")
-  	
-  ) %>%
-  arrange(yy_hecho)
-
-```
-
-
-Calcular el impacto:
-```{r}
-
-# Impacto para mestizo
-impacto_mestizo_homi <- calcular_impacto(donante_cols_mestizo, observaciones_mestizo, agregados_comparacion_homi)
-
-print(impacto_mestizo_homi$wai)
-print(impacto_mestizo_homi$mean_wai) 
-print(impacto_mestizo_homi$wrai)
-print(impacto_mestizo_homi$mean_wrai) 
-
-# Impacto para narp
-impacto_narp_homi <- calcular_impacto(donante_cols_narp, observaciones_narp, agregados_comparacion_homi)
-
-print(impacto_narp_homi$wai)
-print(impacto_narp_homi$mean_wai) 
-print(impacto_narp_homi$wrai)
-print(impacto_narp_homi$mean_wrai) 
-
-# Impacto para indigena
-impacto_indigena_homi <- calcular_impacto(donante_cols_indigena, observaciones_indigena, agregados_comparacion_homi)
-
-print(impacto_indigena_homi$wai)
-print(impacto_indigena_homi$mean_wai) 
-print(impacto_indigena_homi$wrai)
-print(impacto_indigena_homi$mean_wrai) 
-
-# Impacto para rrom
-impacto_rrom_homi <- calcular_impacto(donante_cols_rrom, observaciones_rrom, agregados_comparacion_homi)
-
-print(impacto_rrom_homi$wai)
-print(impacto_rrom_homi$mean_wai) 
-print(impacto_rrom_homi$wrai)
-print(impacto_rrom_homi$mean_wrai) 
+# Extraer estadísticos de los 5 folds
+stats_summary_homi <- generate_indicators_summary_by_class(comparison_homi_stat)
+stats_summary_homi
 
 ```
 
@@ -597,7 +546,8 @@ comparacion_reclu <- complete_violencias_unidas_aux %>%
 	merge(artif_donante_etnia_reclu4, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
 	mutate(etnia_donante4 = as.factor(etnia_donante)) %>% select(-etnia_donante) %>%
 	merge(artif_donante_etnia_reclu5, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
-	mutate(etnia_donante5 = as.factor(etnia_donante)) %>% select(-etnia_donante)
+	mutate(etnia_donante5 = as.factor(etnia_donante)) %>% select(-etnia_donante) %>%
+	as.data.table()
 
 ```
 
@@ -607,120 +557,47 @@ Matriz de confusión:
 # Columnas a comparar
 donante_cols <- c("etnia_donante1", "etnia_donante2", "etnia_donante3", "etnia_donante4", "etnia_donante5")
 
+# Inicializar listas para almacenar métricas
 metrics_list <- list()
-sensitivity_list <- c()
-specificity_list <- c()
-pos_pred_value_list <- c()
-neg_pred_value_list <- c()
-balanced_accuracy_list <- c()
 
-# Calcular matrices de confusión 
+# Calcular matrices de confusión y almacenar métricas con etiquetas de clase
 for (col in donante_cols) {
   conf_matrix <- confusionMatrix(comparacion_reclu[[col]], comparacion_reclu$etnia_obs)
   
-  # Guardar métricas generales
-  metrics_list[[col]] <- conf_matrix$overall
+  # Extraer clases
+  clases <- rownames(conf_matrix$byClass)
   
-  # Guardar métricas específicas
-  sensitivity_list <- c(sensitivity_list, conf_matrix$byClass[, "Sensitivity"])
-  specificity_list <- c(specificity_list, conf_matrix$byClass[, "Specificity"])
-  pos_pred_value_list <- c(pos_pred_value_list, conf_matrix$byClass[, "Pos Pred Value"])
-  neg_pred_value_list <- c(neg_pred_value_list, conf_matrix$byClass[, "Neg Pred Value"])
-  balanced_accuracy_list <- c(balanced_accuracy_list, conf_matrix$byClass[, "Balanced Accuracy"])
-
+  # Crear un data frame temporal para almacenar métricas con etiquetas de clase y columna donante
+  temp_df <- data.frame(
+    Donante_Col = col,
+    Clase = clases,
+    Accuracy = rep(conf_matrix$overall["Accuracy"], length(clases)),
+    Sensitivity = conf_matrix$byClass[, "Sensitivity"],
+    Specificity = conf_matrix$byClass[, "Specificity"],
+    Pos_Pred_Value = conf_matrix$byClass[, "Pos Pred Value"],
+    Neg_Pred_Value = conf_matrix$byClass[, "Neg Pred Value"],
+    Balanced_Accuracy = conf_matrix$byClass[, "Balanced Accuracy"]
+  )
+  
+  # Agregar el data frame temporal a la lista
+  metrics_list[[col]] <- temp_df
 }
 
-# Crear un data frame con las métricas de cada matriz de confusión
-metrics_df_reclu <- data.frame(
-  Accuracy = unname(sapply(metrics_list, function(x) x["Accuracy"])),
-  Sensitivity = sensitivity_list,
-  Specificity = specificity_list,
-  Pos_Pred_Value = pos_pred_value_list,
-  Neg_Pred_Value = neg_pred_value_list,
-  Balanced_Accuracy = balanced_accuracy_list
-)
+# Combinar todos los data frames en uno solo
+metrics_df_reclu <- do.call(rbind, metrics_list)
 
-# Calcular la media de las métricas
-mean_metrics_reclu <- colMeans(metrics_df_reclu)
-mean_metrics_reclu
+metrics_cv_reclu <- generate_cv_summary(metrics_df_reclu)
+metrics_cv_reclu
+
 
 ```
-Base de datos con observados e imputados: 
-
+WAI y WRAI:
 ```{r}
+comparison_reclu_stat <- comparison_data(comparacion_reclu)
 
-agregados_comparacion_reclu <- comparacion_reclu %>%
-  group_by(yy_hecho) %>%
-  summarise(
-
-  	mestizo_obs = sum(etnia_obs == "MESTIZO"),
-    mestizo_donante1 = sum(etnia_donante1 == "MESTIZO"),
-    mestizo_donante2 = sum(etnia_donante2 == "MESTIZO"),
-    mestizo_donante3 = sum(etnia_donante3 == "MESTIZO"),
-    mestizo_donante4 = sum(etnia_donante4 == "MESTIZO"),
-    mestizo_donante5 = sum(etnia_donante5 == "MESTIZO"),
-    
-    narp_obs = sum(etnia_obs == "NARP"),
-    narp_donante1 = sum(etnia_donante1 == "NARP"),
-    narp_donante2 = sum(etnia_donante2 == "NARP"),
-    narp_donante3 = sum(etnia_donante3 == "NARP"),
-    narp_donante4 = sum(etnia_donante4 == "NARP"),
-    narp_donante5 = sum(etnia_donante5 == "NARP"),
-    
-    indigena_obs = sum(etnia_obs == "INDIGENA"),
-    indigena_donante1 = sum(etnia_donante1 == "INDIGENA"),
-    indigena_donante2 = sum(etnia_donante2 == "INDIGENA"),
-    indigena_donante3 = sum(etnia_donante3 == "INDIGENA"),
-    indigena_donante4 = sum(etnia_donante4 == "INDIGENA"),
-    indigena_donante5 = sum(etnia_donante5 == "INDIGENA"),
-    
-    rrom_obs = sum(etnia_obs == "ROM"),
-    rrom_donante1 = sum(etnia_donante1 == "ROM"),
-    rrom_donante2 = sum(etnia_donante2 == "ROM"),
-    rrom_donante3 = sum(etnia_donante3 == "ROM"),
-    rrom_donante4 = sum(etnia_donante4 == "ROM"),
-    rrom_donante5 = sum(etnia_donante5 == "ROM")
-  	
-  ) %>%
-  arrange(yy_hecho)
-
-```
-
-
-Calcular el impacto:
-```{r}
-
-# Impacto para mestizo
-impacto_mestizo_reclu <- calcular_impacto(donante_cols_mestizo, observaciones_mestizo, agregados_comparacion_reclu)
-
-print(impacto_mestizo_reclu$wai)
-print(impacto_mestizo_reclu$mean_wai) 
-print(impacto_mestizo_reclu$wrai)
-print(impacto_mestizo_reclu$mean_wrai) 
-
-# Impacto para narp
-impacto_narp_reclu <- calcular_impacto(donante_cols_narp, observaciones_narp, agregados_comparacion_reclu)
-
-print(impacto_narp_reclu$wai)
-print(impacto_narp_reclu$mean_wai) 
-print(impacto_narp_reclu$wrai)
-print(impacto_narp_reclu$mean_wrai) 
-
-# Impacto para indigena
-impacto_indigena_reclu <- calcular_impacto(donante_cols_indigena, observaciones_indigena, agregados_comparacion_reclu)
-
-print(impacto_indigena_reclu$wai)
-print(impacto_indigena_reclu$mean_wai) 
-print(impacto_indigena_reclu$wrai)
-print(impacto_indigena_reclu$mean_wrai) 
-
-# Impacto para rrom
-impacto_rrom_reclu <- calcular_impacto(donante_cols_rrom, observaciones_rrom, agregados_comparacion_reclu)
-
-print(impacto_rrom_reclu$wai)
-print(impacto_rrom_reclu$mean_wai) 
-print(impacto_rrom_reclu$wrai)
-print(impacto_rrom_reclu$mean_wrai) 
+# Extraer estadísticos de los 5 folds
+stats_summary_reclu <- generate_indicators_summary_by_class(comparison_reclu_stat)
+stats_summary_reclu
 
 ```
 # Secuestro:
@@ -750,7 +627,8 @@ comparacion_secue <- complete_violencias_unidas_aux %>%
 	merge(artif_donante_etnia_secue4, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
 	mutate(etnia_donante4 = as.factor(etnia_donante)) %>% select(-etnia_donante) %>%
 	merge(artif_donante_etnia_secue5, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
-	mutate(etnia_donante5 = as.factor(etnia_donante)) %>% select(-etnia_donante)
+	mutate(etnia_donante5 = as.factor(etnia_donante)) %>% select(-etnia_donante) %>%
+	as.data.table()
 
 ```
 
@@ -760,119 +638,46 @@ Matriz de confusión:
 # Columnas a comparar
 donante_cols <- c("etnia_donante1", "etnia_donante2", "etnia_donante3", "etnia_donante4", "etnia_donante5")
 
+# Inicializar listas para almacenar métricas
 metrics_list <- list()
-sensitivity_list <- c()
-specificity_list <- c()
-pos_pred_value_list <- c()
-neg_pred_value_list <- c()
-balanced_accuracy_list <- c()
 
-# Calcular matrices de confusión 
+# Calcular matrices de confusión y almacenar métricas con etiquetas de clase
 for (col in donante_cols) {
   conf_matrix <- confusionMatrix(comparacion_secue[[col]], comparacion_secue$etnia_obs)
   
-  # Guardar métricas generales
-  metrics_list[[col]] <- conf_matrix$overall
+  # Extraer clases
+  clases <- rownames(conf_matrix$byClass)
   
-  # Guardar métricas específicas
-  sensitivity_list <- c(sensitivity_list, conf_matrix$byClass[, "Sensitivity"])
-  specificity_list <- c(specificity_list, conf_matrix$byClass[, "Specificity"])
-  pos_pred_value_list <- c(pos_pred_value_list, conf_matrix$byClass[, "Pos Pred Value"])
-  neg_pred_value_list <- c(neg_pred_value_list, conf_matrix$byClass[, "Neg Pred Value"])
-  balanced_accuracy_list <- c(balanced_accuracy_list, conf_matrix$byClass[, "Balanced Accuracy"])
-
+  # Crear un data frame temporal para almacenar métricas con etiquetas de clase y columna donante
+  temp_df <- data.frame(
+    Donante_Col = col,
+    Clase = clases,
+    Accuracy = rep(conf_matrix$overall["Accuracy"], length(clases)),
+    Sensitivity = conf_matrix$byClass[, "Sensitivity"],
+    Specificity = conf_matrix$byClass[, "Specificity"],
+    Pos_Pred_Value = conf_matrix$byClass[, "Pos Pred Value"],
+    Neg_Pred_Value = conf_matrix$byClass[, "Neg Pred Value"],
+    Balanced_Accuracy = conf_matrix$byClass[, "Balanced Accuracy"]
+  )
+  
+  # Agregar el data frame temporal a la lista
+  metrics_list[[col]] <- temp_df
 }
 
-# Crear un data frame con las métricas de cada matriz de confusión
-metrics_df_secue <- data.frame(
-  Accuracy = unname(sapply(metrics_list, function(x) x["Accuracy"])),
-  Sensitivity = sensitivity_list,
-  Specificity = specificity_list,
-  Pos_Pred_Value = pos_pred_value_list,
-  Neg_Pred_Value = neg_pred_value_list,
-  Balanced_Accuracy = balanced_accuracy_list
-)
+# Combinar todos los data frames en uno solo
+metrics_df_secue <- do.call(rbind, metrics_list)
 
-# Calcular la media de las métricas
-mean_metrics_secue <- colMeans(metrics_df_secue)
-mean_metrics_secue
+metrics_cv_secue <- generate_cv_summary(metrics_df_secue)
+metrics_cv_secue
+
 
 ```
-Base de datos con observados e imputados: 
-
+WAI y WRAI:
 ```{r}
+comparison_secue_stat <- comparison_data(comparacion_secue)
 
-agregados_comparacion_secue <- comparacion_secue %>%
-  group_by(yy_hecho) %>%
-  summarise(
-
-  	mestizo_obs = sum(etnia_obs == "MESTIZO"),
-    mestizo_donante1 = sum(etnia_donante1 == "MESTIZO"),
-    mestizo_donante2 = sum(etnia_donante2 == "MESTIZO"),
-    mestizo_donante3 = sum(etnia_donante3 == "MESTIZO"),
-    mestizo_donante4 = sum(etnia_donante4 == "MESTIZO"),
-    mestizo_donante5 = sum(etnia_donante5 == "MESTIZO"),
-    
-    narp_obs = sum(etnia_obs == "NARP"),
-    narp_donante1 = sum(etnia_donante1 == "NARP"),
-    narp_donante2 = sum(etnia_donante2 == "NARP"),
-    narp_donante3 = sum(etnia_donante3 == "NARP"),
-    narp_donante4 = sum(etnia_donante4 == "NARP"),
-    narp_donante5 = sum(etnia_donante5 == "NARP"),
-    
-    indigena_obs = sum(etnia_obs == "INDIGENA"),
-    indigena_donante1 = sum(etnia_donante1 == "INDIGENA"),
-    indigena_donante2 = sum(etnia_donante2 == "INDIGENA"),
-    indigena_donante3 = sum(etnia_donante3 == "INDIGENA"),
-    indigena_donante4 = sum(etnia_donante4 == "INDIGENA"),
-    indigena_donante5 = sum(etnia_donante5 == "INDIGENA"),
-    
-    rrom_obs = sum(etnia_obs == "ROM"),
-    rrom_donante1 = sum(etnia_donante1 == "ROM"),
-    rrom_donante2 = sum(etnia_donante2 == "ROM"),
-    rrom_donante3 = sum(etnia_donante3 == "ROM"),
-    rrom_donante4 = sum(etnia_donante4 == "ROM"),
-    rrom_donante5 = sum(etnia_donante5 == "ROM")
-  	
-  ) %>%
-  arrange(yy_hecho)
-
-```
-
-
-Calcular el impacto:
-```{r}
-
-# Impacto para mestizo
-impacto_mestizo_secue <- calcular_impacto(donante_cols_mestizo, observaciones_mestizo, agregados_comparacion_secue)
-
-print(impacto_mestizo_secue$wai)
-print(impacto_mestizo_secue$mean_wai) 
-print(impacto_mestizo_secue$wrai)
-print(impacto_mestizo_secue$mean_wrai) 
-
-# Impacto para narp
-impacto_narp_secue <- calcular_impacto(donante_cols_narp, observaciones_narp, agregados_comparacion_secue)
-
-print(impacto_narp_secue$wai)
-print(impacto_narp_secue$mean_wai) 
-print(impacto_narp_secue$wrai)
-print(impacto_narp_secue$mean_wrai) 
-
-# Impacto para indigena
-impacto_indigena_secue <- calcular_impacto(donante_cols_indigena, observaciones_indigena, agregados_comparacion_secue)
-
-print(impacto_indigena_secue$wai)
-print(impacto_indigena_secue$mean_wai) 
-print(impacto_indigena_secue$wrai)
-print(impacto_indigena_secue$mean_wrai) 
-
-# Impacto para rrom
-impacto_rrom_secue <- calcular_impacto(donante_cols_rrom, observaciones_rrom, agregados_comparacion_secue)
-
-print(impacto_rrom_secue$wai)
-print(impacto_rrom_secue$mean_wai) 
-print(impacto_rrom_secue$wrai)
-print(impacto_rrom_secue$mean_wrai) 
+# Extraer estadísticos de los 5 folds
+stats_summary_secue <- generate_indicators_summary_by_class(comparison_secue_stat)
+stats_summary_secue
 
 ```

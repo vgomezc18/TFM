@@ -229,35 +229,130 @@ artif_donante_edad_jep_5 <- readRDS(paste0(output_dir,"/artif_donante_edad_jep_5
 
 ```
 
-Función para indicadores de impacto de la detección y tratamiento de errores: 
+Funciones para hacer descriptivos: 
 
 ```{r}
-
-# Calcular WAI y WRAI
-calcular_impacto <- function(donante_cols, observaciones, datos) {
-  wai <- sapply(donante_cols, function(col) sum(datos[[col]] - datos[[observaciones]]))
-  wrai <- sapply(donante_cols, function(col) sum(datos[[col]] - datos[[observaciones]]) / sum(datos[[observaciones]]))
+# Para generar matriz de confusión
+generate_cv_summary <- function(metrics_df) {
+  metrics_dt <- as.data.table(metrics_df)
+  summary_list <- list()
+  clases <- unique(metrics_dt$Clase)
   
-  list(
-    wai = wai,
-    mean_wai = mean(wai),
-    wrai = wrai,
-    mean_wrai = mean(wrai)
-  )
+  for (clase in clases) {
+    class_metrics_dt <- metrics_dt[Clase == clase]
+    
+    stats_summary <- data.table(
+      Clase = clase,
+      Metric = colnames(class_metrics_dt)[-(1:2)],  # Excluir las primeras dos columnas (Donante_Col y Clase)
+      Min = paste0(sapply(class_metrics_dt[, -c("Donante_Col", "Clase"), with = FALSE], function(x) round(min(x, na.rm = TRUE) * 100, 2)), "%"),
+      `1st_Qu.` = paste0(sapply(class_metrics_dt[, -c("Donante_Col", "Clase"), with = FALSE], function(x) round(quantile(x, 0.25, na.rm = TRUE) * 100, 2)), "%"),
+      Median = paste0(sapply(class_metrics_dt[, -c("Donante_Col", "Clase"), with = FALSE], function(x) round(median(x, na.rm = TRUE) * 100, 2)), "%"),
+      Mean = paste0(sapply(class_metrics_dt[, -c("Donante_Col", "Clase"), with = FALSE], function(x) round(mean(x, na.rm = TRUE) * 100, 2)), "%"),
+      `3rd_Qu.` = paste0(sapply(class_metrics_dt[, -c("Donante_Col", "Clase"), with = FALSE], function(x) round(quantile(x, 0.75, na.rm = TRUE) * 100, 2)), "%"),
+      Max = paste0(sapply(class_metrics_dt[, -c("Donante_Col", "Clase"), with = FALSE], function(x) round(max(x, na.rm = TRUE) * 100, 2)), "%"),
+      SD = paste0(sapply(class_metrics_dt[, -c("Donante_Col", "Clase"), with = FALSE], function(x) round(sd(x, na.rm = TRUE) * 100, 2)), "%")
+    )
+    
+    summary_list[[clase]] <- stats_summary
+  }
+  
+  final_summary <- rbindlist(summary_list)
+  
+  return(final_summary)
+}
+
+# Para generar data con wai y wrai
+comparison_data <- function(data) {
+  results_list <- list()
+  categorias_edad_jep <- unique(data$edad_jep_obs)
+  for (categoria in categorias_edad_jep) {
+    data_filtrada <- data[edad_jep_obs == categoria]
+    
+    for (i in 1:5) {
+      donor_col <- paste0("edad_jep_donante", i)
+      
+      result <- data_filtrada[, .(
+        iguales = sum(edad_jep_obs == get(donor_col), na.rm = TRUE),
+        diferentes = sum(edad_jep_obs != get(donor_col), na.rm = TRUE),
+        donante = donor_col 
+      )]
+      
+      result[, wrai := round(diferentes / (iguales + diferentes), 4)]
+      result[, categoria := categoria] 
+      results_list[[paste0(categoria, "_", i)]] <- result
+    }
+  }
+  
+  final_result <- rbindlist(results_list)
+  return(final_result)
 }
 
 
-# Columnas de donantes y observaciones para adultez
-donante_cols_adultez <- paste0("adultez_donante", 1:5)
-observaciones_adultez <- "adultez_obs"
-
-# Columnas de donantes y observaciones para infancia
-donante_cols_infancia <- paste0("infancia_donante", 1:5)
-observaciones_infancia <- "infancia_obs"
-
-# Columnas de donantes y observaciones para adolescencia
-donante_cols_adolescencia <- paste0("adolescencia_donante", 1:5)
-observaciones_adolescencia <- "adolescencia_obs"
+# Para descriptivos de WAI y WRAI de los 5 folds y de cada clase
+generate_indicators_summary_by_class <- function(data) {
+  # Verificar que las columnas necesarias están presentes
+  required_cols <- c("categoria", "diferentes", "wrai")
+  if (!all(required_cols %in% colnames(data))) {
+    stop("Faltan una o más columnas necesarias en los datos.")
+  }
+  
+  # Convertir el data frame en data.table
+  data_dt <- as.data.table(data)
+  
+  # Inicializar una lista para almacenar los resúmenes por edad_jep
+  summary_list <- list()
+  
+  # Agrupar por edad_jep
+  edad_jeps <- unique(data_dt$categoria)
+  
+  # Iterar sobre cada edad_jep
+  for (edad_jep in edad_jeps) {
+    # Filtrar los datos correspondientes a la edad_jep actual
+    edad_jep_data <- data_dt[categoria == edad_jep]
+    
+    # Calcular el resumen estadístico para cada métrica dentro de esta edad_jep
+    stats_summary <- data.table(
+      edad_jep = edad_jep,
+      Metric = c("diferentes", "wrai"),
+      Min = c(
+        round(min(edad_jep_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(min(edad_jep_data$wrai, na.rm = TRUE) * 100, 2), "%")
+      ),
+      `1st_Qu.` = c(
+        round(quantile(edad_jep_data$diferentes, 0.25, na.rm = TRUE), 0),
+        paste0(round(quantile(edad_jep_data$wrai, 0.25, na.rm = TRUE) * 100, 2), "%")
+      ),
+      Median = c(
+        round(median(edad_jep_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(median(edad_jep_data$wrai, na.rm = TRUE) * 100, 2), "%")
+      ),
+      Mean = c(
+        round(mean(edad_jep_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(mean(edad_jep_data$wrai, na.rm = TRUE) * 100, 2), "%")
+      ),
+      `3rd_Qu.` = c(
+        round(quantile(edad_jep_data$diferentes, 0.75, na.rm = TRUE), 0),
+        paste0(round(quantile(edad_jep_data$wrai, 0.75, na.rm = TRUE) * 100, 2), "%")
+      ),
+      Max = c(
+        round(max(edad_jep_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(max(edad_jep_data$wrai, na.rm = TRUE) * 100, 2), "%")
+      ),
+      SD = c(
+        round(sd(edad_jep_data$diferentes, na.rm = TRUE), 2),
+        paste0(round(sd(edad_jep_data$wrai, na.rm = TRUE) * 100, 2), "%")
+      )
+    )
+    
+    # Agregar el resumen estadístico de esta edad_jep a la lista
+    summary_list[[edad_jep]] <- stats_summary
+  }
+  
+  # Combinar todos los resúmenes en un solo data.table
+  final_summary <- rbindlist(summary_list)
+  
+  return(final_summary)
+}
 
 ```
 
@@ -289,7 +384,8 @@ comparacion_desap <- complete_violencias_unidas_aux %>%
 	merge(artif_donante_edad_jep_desap4, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
 	mutate(edad_jep_donante4 = as.factor(edad_jep_donante)) %>% select(-edad_jep_donante) %>%
 	merge(artif_donante_edad_jep_desap5, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
-	mutate(edad_jep_donante5 = as.factor(edad_jep_donante)) %>% select(-edad_jep_donante)
+	mutate(edad_jep_donante5 = as.factor(edad_jep_donante)) %>% select(-edad_jep_donante) %>%
+	as.data.table()
 
 ```
 
@@ -299,105 +395,48 @@ Matriz de confusión:
 # Columnas a comparar
 donante_cols <- c("edad_jep_donante1", "edad_jep_donante2", "edad_jep_donante3", "edad_jep_donante4", "edad_jep_donante5")
 
+# listas para guardar métricas
 metrics_list <- list()
-sensitivity_list <- c()
-specificity_list <- c()
-pos_pred_value_list <- c()
-neg_pred_value_list <- c()
-balanced_accuracy_list <- c()
 
-# Calcular matrices de confusión 
+# Calcular matrices de confusión
 for (col in donante_cols) {
   conf_matrix <- confusionMatrix(comparacion_desap[[col]], comparacion_desap$edad_jep_obs)
   
-  # Guardar métricas generales
-  metrics_list[[col]] <- conf_matrix$overall
+  # Extraer clases
+  clases <- rownames(conf_matrix$byClass)
   
-  # Guardar métricas específicas
-  sensitivity_list <- c(sensitivity_list, conf_matrix$byClass[, "Sensitivity"])
-  specificity_list <- c(specificity_list, conf_matrix$byClass[, "Specificity"])
-  pos_pred_value_list <- c(pos_pred_value_list, conf_matrix$byClass[, "Pos Pred Value"])
-  neg_pred_value_list <- c(neg_pred_value_list, conf_matrix$byClass[, "Neg Pred Value"])
-  balanced_accuracy_list <- c(balanced_accuracy_list, conf_matrix$byClass[, "Balanced Accuracy"])
-
+  # Crear un data frame temporal para guardar métricas con etiquetas de clase y con columna donante
+  temp_df <- data.frame(
+    Donante_Col = col,
+    Clase = clases,
+    Accuracy = rep(conf_matrix$overall["Accuracy"], length(clases)),
+    Sensitivity = conf_matrix$byClass[, "Sensitivity"],
+    Specificity = conf_matrix$byClass[, "Specificity"],
+    Pos_Pred_Value = conf_matrix$byClass[, "Pos Pred Value"],
+    Neg_Pred_Value = conf_matrix$byClass[, "Neg Pred Value"],
+    Balanced_Accuracy = conf_matrix$byClass[, "Balanced Accuracy"]
+  )
+  
+  # Agregar el data frame temporal a la lista
+  metrics_list[[col]] <- temp_df
 }
 
-# Crear un data frame con las métricas de cada matriz de confusión
-metrics_df_desap <- data.frame(
-  Accuracy = unname(sapply(metrics_list, function(x) x["Accuracy"])),
-  Sensitivity = sensitivity_list,
-  Specificity = specificity_list,
-  Pos_Pred_Value = pos_pred_value_list,
-  Neg_Pred_Value = neg_pred_value_list,
-  Balanced_Accuracy = balanced_accuracy_list
-)
+# Combinar todos los data frames en uno solo
+metrics_df_desap <- do.call(rbind, metrics_list)
 
-# Calcular la media de las métricas
-mean_metrics_desap <- colMeans(metrics_df_desap)
-mean_metrics_desap
 
-```
-Base de datos con observados e imputados: 
-
-```{r}
-
-agregados_comparacion_desap <- comparacion_desap %>%
-  group_by(yy_hecho) %>%
-  summarise(
-
-  	adultez_obs = sum(edad_jep_obs == "ADULTEZ"),
-    adultez_donante1 = sum(edad_jep_donante1 == "ADULTEZ"),
-    adultez_donante2 = sum(edad_jep_donante2 == "ADULTEZ"),
-    adultez_donante3 = sum(edad_jep_donante3 == "ADULTEZ"),
-    adultez_donante4 = sum(edad_jep_donante4 == "ADULTEZ"),
-    adultez_donante5 = sum(edad_jep_donante5 == "ADULTEZ"),
-    
-    infancia_obs = sum(edad_jep_obs == "INFANCIA"),
-    infancia_donante1 = sum(edad_jep_donante1 == "INFANCIA"),
-    infancia_donante2 = sum(edad_jep_donante2 == "INFANCIA"),
-    infancia_donante3 = sum(edad_jep_donante3 == "INFANCIA"),
-    infancia_donante4 = sum(edad_jep_donante4 == "INFANCIA"),
-    infancia_donante5 = sum(edad_jep_donante5 == "INFANCIA"),
-    
-    adolescencia_obs = sum(edad_jep_obs == "ADOLESCENCIA"),
-    adolescencia_donante1 = sum(edad_jep_donante1 == "ADOLESCENCIA"),
-    adolescencia_donante2 = sum(edad_jep_donante2 == "ADOLESCENCIA"),
-    adolescencia_donante3 = sum(edad_jep_donante3 == "ADOLESCENCIA"),
-    adolescencia_donante4 = sum(edad_jep_donante4 == "ADOLESCENCIA"),
-    adolescencia_donante5 = sum(edad_jep_donante5 == "ADOLESCENCIA")
-    
-  ) %>%
-  arrange(yy_hecho)
+metrics_cv_desap <- generate_cv_summary(metrics_df_desap)
+metrics_cv_desap
 
 ```
 
-
-Calcular el impacto:
+WAI y WRAI:
 ```{r}
+comparison_desap_stat <- comparison_data(comparacion_desap)
 
-# Impacto para adultez
-impacto_adultez_desap <- calcular_impacto(donante_cols_adultez, observaciones_adultez, agregados_comparacion_desap)
-
-print(impacto_adultez_desap$wai)
-print(impacto_adultez_desap$mean_wai) 
-print(impacto_adultez_desap$wrai)
-print(impacto_adultez_desap$mean_wrai) 
-
-# Impacto para infancia
-impacto_infancia_desap <- calcular_impacto(donante_cols_infancia, observaciones_infancia, agregados_comparacion_desap)
-
-print(impacto_infancia_desap$wai)
-print(impacto_infancia_desap$mean_wai) 
-print(impacto_infancia_desap$wrai)
-print(impacto_infancia_desap$mean_wrai) 
-
-# Impacto para adolescencia
-impacto_adolescencia_desap <- calcular_impacto(donante_cols_adolescencia, observaciones_adolescencia, agregados_comparacion_desap)
-
-print(impacto_adolescencia_desap$wai)
-print(impacto_adolescencia_desap$mean_wai) 
-print(impacto_adolescencia_desap$wrai)
-print(impacto_adolescencia_desap$mean_wrai) 
+# Extraer estadísticos de los 5 folds
+stats_summary_desap <- generate_indicators_summary_by_class(comparison_desap_stat)
+stats_summary_desap
 
 ```
 
@@ -428,7 +467,8 @@ comparacion_homi <- complete_violencias_unidas_aux %>%
 	merge(artif_donante_edad_jep_homi4, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
 	mutate(edad_jep_donante4 = as.factor(edad_jep_donante)) %>% select(-edad_jep_donante) %>%
 	merge(artif_donante_edad_jep_homi5, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
-	mutate(edad_jep_donante5 = as.factor(edad_jep_donante)) %>% select(-edad_jep_donante)
+	mutate(edad_jep_donante5 = as.factor(edad_jep_donante)) %>% select(-edad_jep_donante) %>%
+	as.data.table()
 
 ```
 
@@ -438,105 +478,48 @@ Matriz de confusión:
 # Columnas a comparar
 donante_cols <- c("edad_jep_donante1", "edad_jep_donante2", "edad_jep_donante3", "edad_jep_donante4", "edad_jep_donante5")
 
+# listas para guardar métricas
 metrics_list <- list()
-sensitivity_list <- c()
-specificity_list <- c()
-pos_pred_value_list <- c()
-neg_pred_value_list <- c()
-balanced_accuracy_list <- c()
 
-# Calcular matrices de confusión 
+# Calcular matrices de confusión
 for (col in donante_cols) {
   conf_matrix <- confusionMatrix(comparacion_homi[[col]], comparacion_homi$edad_jep_obs)
   
-  # Guardar métricas generales
-  metrics_list[[col]] <- conf_matrix$overall
+  # Extraer clases
+  clases <- rownames(conf_matrix$byClass)
   
-  # Guardar métricas específicas
-  sensitivity_list <- c(sensitivity_list, conf_matrix$byClass[, "Sensitivity"])
-  specificity_list <- c(specificity_list, conf_matrix$byClass[, "Specificity"])
-  pos_pred_value_list <- c(pos_pred_value_list, conf_matrix$byClass[, "Pos Pred Value"])
-  neg_pred_value_list <- c(neg_pred_value_list, conf_matrix$byClass[, "Neg Pred Value"])
-  balanced_accuracy_list <- c(balanced_accuracy_list, conf_matrix$byClass[, "Balanced Accuracy"])
-
+  # Crear un data frame temporal para guardar métricas con etiquetas de clase y con columna donante
+  temp_df <- data.frame(
+    Donante_Col = col,
+    Clase = clases,
+    Accuracy = rep(conf_matrix$overall["Accuracy"], length(clases)),
+    Sensitivity = conf_matrix$byClass[, "Sensitivity"],
+    Specificity = conf_matrix$byClass[, "Specificity"],
+    Pos_Pred_Value = conf_matrix$byClass[, "Pos Pred Value"],
+    Neg_Pred_Value = conf_matrix$byClass[, "Neg Pred Value"],
+    Balanced_Accuracy = conf_matrix$byClass[, "Balanced Accuracy"]
+  )
+  
+  # Agregar el data frame temporal a la lista
+  metrics_list[[col]] <- temp_df
 }
 
-# Crear un data frame con las métricas de cada matriz de confusión
-metrics_df_homi <- data.frame(
-  Accuracy = unname(sapply(metrics_list, function(x) x["Accuracy"])),
-  Sensitivity = sensitivity_list,
-  Specificity = specificity_list,
-  Pos_Pred_Value = pos_pred_value_list,
-  Neg_Pred_Value = neg_pred_value_list,
-  Balanced_Accuracy = balanced_accuracy_list
-)
+# Combinar todos los data frames en uno solo
+metrics_df_homi <- do.call(rbind, metrics_list)
 
-# Calcular la media de las métricas
-mean_metrics_homi <- colMeans(metrics_df_homi)
-mean_metrics_homi
 
-```
-Base de datos con observados e imputados: 
-
-```{r}
-
-agregados_comparacion_homi <- comparacion_homi %>%
-  group_by(yy_hecho) %>%
-  summarise(
-
-  	adultez_obs = sum(edad_jep_obs == "ADULTEZ"),
-    adultez_donante1 = sum(edad_jep_donante1 == "ADULTEZ"),
-    adultez_donante2 = sum(edad_jep_donante2 == "ADULTEZ"),
-    adultez_donante3 = sum(edad_jep_donante3 == "ADULTEZ"),
-    adultez_donante4 = sum(edad_jep_donante4 == "ADULTEZ"),
-    adultez_donante5 = sum(edad_jep_donante5 == "ADULTEZ"),
-    
-    infancia_obs = sum(edad_jep_obs == "INFANCIA"),
-    infancia_donante1 = sum(edad_jep_donante1 == "INFANCIA"),
-    infancia_donante2 = sum(edad_jep_donante2 == "INFANCIA"),
-    infancia_donante3 = sum(edad_jep_donante3 == "INFANCIA"),
-    infancia_donante4 = sum(edad_jep_donante4 == "INFANCIA"),
-    infancia_donante5 = sum(edad_jep_donante5 == "INFANCIA"),
-    
-    adolescencia_obs = sum(edad_jep_obs == "ADOLESCENCIA"),
-    adolescencia_donante1 = sum(edad_jep_donante1 == "ADOLESCENCIA"),
-    adolescencia_donante2 = sum(edad_jep_donante2 == "ADOLESCENCIA"),
-    adolescencia_donante3 = sum(edad_jep_donante3 == "ADOLESCENCIA"),
-    adolescencia_donante4 = sum(edad_jep_donante4 == "ADOLESCENCIA"),
-    adolescencia_donante5 = sum(edad_jep_donante5 == "ADOLESCENCIA")
-    
-  ) %>%
-  arrange(yy_hecho)
+metrics_cv_homi <- generate_cv_summary(metrics_df_homi)
+metrics_cv_homi
 
 ```
 
-
-Calcular el impacto:
+WAI y WRAI:
 ```{r}
+comparison_homi_stat <- comparison_data(comparacion_homi)
 
-# Impacto para adultez
-impacto_adultez_homi <- calcular_impacto(donante_cols_adultez, observaciones_adultez, agregados_comparacion_homi)
-
-print(impacto_adultez_homi$wai)
-print(impacto_adultez_homi$mean_wai) 
-print(impacto_adultez_homi$wrai)
-print(impacto_adultez_homi$mean_wrai) 
-
-# Impacto para infancia
-impacto_infancia_homi <- calcular_impacto(donante_cols_infancia, observaciones_infancia, agregados_comparacion_homi)
-
-print(impacto_infancia_homi$wai)
-print(impacto_infancia_homi$mean_wai) 
-print(impacto_infancia_homi$wrai)
-print(impacto_infancia_homi$mean_wrai) 
-
-# Impacto para adolescencia
-impacto_adolescencia_homi <- calcular_impacto(donante_cols_adolescencia, observaciones_adolescencia, agregados_comparacion_homi)
-
-print(impacto_adolescencia_homi$wai)
-print(impacto_adolescencia_homi$mean_wai) 
-print(impacto_adolescencia_homi$wrai)
-print(impacto_adolescencia_homi$mean_wrai) 
+# Extraer estadísticos de los 5 folds
+stats_summary_homi <- generate_indicators_summary_by_class(comparison_homi_stat)
+stats_summary_homi
 
 ```
 
@@ -568,7 +551,8 @@ comparacion_reclu <- complete_violencias_unidas_aux %>%
 	merge(artif_donante_edad_jep_reclu4, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
 	mutate(edad_jep_donante4 = as.factor(edad_jep_donante)) %>% select(-edad_jep_donante) %>%
 	merge(artif_donante_edad_jep_reclu5, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
-	mutate(edad_jep_donante5 = as.factor(edad_jep_donante)) %>% select(-edad_jep_donante)
+	mutate(edad_jep_donante5 = as.factor(edad_jep_donante)) %>% select(-edad_jep_donante) %>%
+	as.data.table()
 
 ```
 
@@ -578,109 +562,51 @@ Matriz de confusión:
 # Columnas a comparar
 donante_cols <- c("edad_jep_donante1", "edad_jep_donante2", "edad_jep_donante3", "edad_jep_donante4", "edad_jep_donante5")
 
+# listas para guardar métricas
 metrics_list <- list()
-sensitivity_list <- c()
-specificity_list <- c()
-pos_pred_value_list <- c()
-neg_pred_value_list <- c()
-balanced_accuracy_list <- c()
 
-# Calcular matrices de confusión 
+# Calcular matrices de confusión
 for (col in donante_cols) {
   conf_matrix <- confusionMatrix(comparacion_reclu[[col]], comparacion_reclu$edad_jep_obs)
   
-  # Guardar métricas generales
-  metrics_list[[col]] <- conf_matrix$overall
+  # Extraer clases
+  clases <- rownames(conf_matrix$byClass)
   
-  # Guardar métricas específicas
-  sensitivity_list <- c(sensitivity_list, conf_matrix$byClass[, "Sensitivity"])
-  specificity_list <- c(specificity_list, conf_matrix$byClass[, "Specificity"])
-  pos_pred_value_list <- c(pos_pred_value_list, conf_matrix$byClass[, "Pos Pred Value"])
-  neg_pred_value_list <- c(neg_pred_value_list, conf_matrix$byClass[, "Neg Pred Value"])
-  balanced_accuracy_list <- c(balanced_accuracy_list, conf_matrix$byClass[, "Balanced Accuracy"])
-
+  # Crear un data frame temporal para guardar métricas con etiquetas de clase y con columna donante
+  temp_df <- data.frame(
+    Donante_Col = col,
+    Clase = clases,
+    Accuracy = rep(conf_matrix$overall["Accuracy"], length(clases)),
+    Sensitivity = conf_matrix$byClass[, "Sensitivity"],
+    Specificity = conf_matrix$byClass[, "Specificity"],
+    Pos_Pred_Value = conf_matrix$byClass[, "Pos Pred Value"],
+    Neg_Pred_Value = conf_matrix$byClass[, "Neg Pred Value"],
+    Balanced_Accuracy = conf_matrix$byClass[, "Balanced Accuracy"]
+  )
+  
+  # Agregar el data frame temporal a la lista
+  metrics_list[[col]] <- temp_df
 }
 
-# Crear un data frame con las métricas de cada matriz de confusión
-metrics_df_reclu <- data.frame(
-  Accuracy = unname(sapply(metrics_list, function(x) x["Accuracy"])),
-  Sensitivity = sensitivity_list,
-  Specificity = specificity_list,
-  Pos_Pred_Value = pos_pred_value_list,
-  Neg_Pred_Value = neg_pred_value_list,
-  Balanced_Accuracy = balanced_accuracy_list
-)
+# Combinar todos los data frames en uno solo
+metrics_df_reclu <- do.call(rbind, metrics_list)
 
-# Calcular la media de las métricas
-mean_metrics_reclu <- colMeans(metrics_df_reclu)
-mean_metrics_reclu
+
+metrics_cv_reclu <- generate_cv_summary(metrics_df_reclu)
+metrics_cv_reclu
 
 ```
-Base de datos con observados e imputados: 
 
+WAI y WRAI:
 ```{r}
+comparison_reclu_stat <- comparison_data(comparacion_reclu)
 
-agregados_comparacion_reclu <- comparacion_reclu %>%
-  group_by(yy_hecho) %>%
-  summarise(
-
-  	adultez_obs = sum(edad_jep_obs == "ADULTEZ"),
-    adultez_donante1 = sum(edad_jep_donante1 == "ADULTEZ"),
-    adultez_donante2 = sum(edad_jep_donante2 == "ADULTEZ"),
-    adultez_donante3 = sum(edad_jep_donante3 == "ADULTEZ"),
-    adultez_donante4 = sum(edad_jep_donante4 == "ADULTEZ"),
-    adultez_donante5 = sum(edad_jep_donante5 == "ADULTEZ"),
-    
-    infancia_obs = sum(edad_jep_obs == "INFANCIA"),
-    infancia_donante1 = sum(edad_jep_donante1 == "INFANCIA"),
-    infancia_donante2 = sum(edad_jep_donante2 == "INFANCIA"),
-    infancia_donante3 = sum(edad_jep_donante3 == "INFANCIA"),
-    infancia_donante4 = sum(edad_jep_donante4 == "INFANCIA"),
-    infancia_donante5 = sum(edad_jep_donante5 == "INFANCIA"),
-    
-    adolescencia_obs = sum(edad_jep_obs == "ADOLESCENCIA"),
-    adolescencia_donante1 = sum(edad_jep_donante1 == "ADOLESCENCIA"),
-    adolescencia_donante2 = sum(edad_jep_donante2 == "ADOLESCENCIA"),
-    adolescencia_donante3 = sum(edad_jep_donante3 == "ADOLESCENCIA"),
-    adolescencia_donante4 = sum(edad_jep_donante4 == "ADOLESCENCIA"),
-    adolescencia_donante5 = sum(edad_jep_donante5 == "ADOLESCENCIA")
-    
-
-  ) %>%
-  arrange(yy_hecho)
+# Extraer estadísticos de los 5 folds
+stats_summary_reclu <- generate_indicators_summary_by_class(comparison_reclu_stat)
+stats_summary_reclu
 
 ```
 
-
-Calcular el impacto:
-```{r}
-
-# Impacto para adultez
-impacto_adultez_reclu <- calcular_impacto(donante_cols_adultez, observaciones_adultez, agregados_comparacion_reclu)
-
-print(impacto_adultez_reclu$wai)
-print(impacto_adultez_reclu$mean_wai) 
-print(impacto_adultez_reclu$wrai)
-print(impacto_adultez_reclu$mean_wrai) 
-
-# Impacto para infancia
-impacto_infancia_reclu <- calcular_impacto(donante_cols_infancia, observaciones_infancia, agregados_comparacion_reclu)
-
-print(impacto_infancia_reclu$wai)
-print(impacto_infancia_reclu$mean_wai) 
-print(impacto_infancia_reclu$wrai)
-print(impacto_infancia_reclu$mean_wrai) 
-
-# Impacto para adolescencia
-impacto_adolescencia_reclu <- calcular_impacto(donante_cols_adolescencia, observaciones_adolescencia, agregados_comparacion_reclu)
-
-print(impacto_adolescencia_reclu$wai)
-print(impacto_adolescencia_reclu$mean_wai) 
-print(impacto_adolescencia_reclu$wrai)
-print(impacto_adolescencia_reclu$mean_wrai) 
-
-
-```
 # Secuestro:
 
 Se unen los datos reales a los datos imputados para cada uno de los grupos:
@@ -708,7 +634,8 @@ comparacion_secue <- complete_violencias_unidas_aux %>%
 	merge(artif_donante_edad_jep_secue4, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
 	mutate(edad_jep_donante4 = as.factor(edad_jep_donante)) %>% select(-edad_jep_donante) %>%
 	merge(artif_donante_edad_jep_secue5, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
-	mutate(edad_jep_donante5 = as.factor(edad_jep_donante)) %>% select(-edad_jep_donante)
+	mutate(edad_jep_donante5 = as.factor(edad_jep_donante)) %>% select(-edad_jep_donante) %>%
+	as.data.table()
 
 ```
 
@@ -718,105 +645,47 @@ Matriz de confusión:
 # Columnas a comparar
 donante_cols <- c("edad_jep_donante1", "edad_jep_donante2", "edad_jep_donante3", "edad_jep_donante4", "edad_jep_donante5")
 
+# listas para guardar métricas
 metrics_list <- list()
-sensitivity_list <- c()
-specificity_list <- c()
-pos_pred_value_list <- c()
-neg_pred_value_list <- c()
-balanced_accuracy_list <- c()
 
-# Calcular matrices de confusión 
+# Calcular matrices de confusión
 for (col in donante_cols) {
   conf_matrix <- confusionMatrix(comparacion_secue[[col]], comparacion_secue$edad_jep_obs)
   
-  # Guardar métricas generales
-  metrics_list[[col]] <- conf_matrix$overall
+  # Extraer clases
+  clases <- rownames(conf_matrix$byClass)
   
-  # Guardar métricas específicas
-  sensitivity_list <- c(sensitivity_list, conf_matrix$byClass[, "Sensitivity"])
-  specificity_list <- c(specificity_list, conf_matrix$byClass[, "Specificity"])
-  pos_pred_value_list <- c(pos_pred_value_list, conf_matrix$byClass[, "Pos Pred Value"])
-  neg_pred_value_list <- c(neg_pred_value_list, conf_matrix$byClass[, "Neg Pred Value"])
-  balanced_accuracy_list <- c(balanced_accuracy_list, conf_matrix$byClass[, "Balanced Accuracy"])
-
+  # Crear un data frame temporal para guardar métricas con etiquetas de clase y con columna donante
+  temp_df <- data.frame(
+    Donante_Col = col,
+    Clase = clases,
+    Accuracy = rep(conf_matrix$overall["Accuracy"], length(clases)),
+    Sensitivity = conf_matrix$byClass[, "Sensitivity"],
+    Specificity = conf_matrix$byClass[, "Specificity"],
+    Pos_Pred_Value = conf_matrix$byClass[, "Pos Pred Value"],
+    Neg_Pred_Value = conf_matrix$byClass[, "Neg Pred Value"],
+    Balanced_Accuracy = conf_matrix$byClass[, "Balanced Accuracy"]
+  )
+  
+  # Agregar el data frame temporal a la lista
+  metrics_list[[col]] <- temp_df
 }
 
-# Crear un data frame con las métricas de cada matriz de confusión
-metrics_df_secue <- data.frame(
-  Accuracy = unname(sapply(metrics_list, function(x) x["Accuracy"])),
-  Sensitivity = sensitivity_list,
-  Specificity = specificity_list,
-  Pos_Pred_Value = pos_pred_value_list,
-  Neg_Pred_Value = neg_pred_value_list,
-  Balanced_Accuracy = balanced_accuracy_list
-)
+# Combinar todos los data frames en uno solo
+metrics_df_secue <- do.call(rbind, metrics_list)
 
-# Calcular la media de las métricas
-mean_metrics_secue <- colMeans(metrics_df_secue)
-mean_metrics_secue
 
-```
-Base de datos con observados e imputados: 
-
-```{r}
-
-agregados_comparacion_secue <- comparacion_secue %>%
-  group_by(yy_hecho) %>%
-  summarise(
-
-  	adultez_obs = sum(edad_jep_obs == "ADULTEZ"),
-    adultez_donante1 = sum(edad_jep_donante1 == "ADULTEZ"),
-    adultez_donante2 = sum(edad_jep_donante2 == "ADULTEZ"),
-    adultez_donante3 = sum(edad_jep_donante3 == "ADULTEZ"),
-    adultez_donante4 = sum(edad_jep_donante4 == "ADULTEZ"),
-    adultez_donante5 = sum(edad_jep_donante5 == "ADULTEZ"),
-    
-    infancia_obs = sum(edad_jep_obs == "INFANCIA"),
-    infancia_donante1 = sum(edad_jep_donante1 == "INFANCIA"),
-    infancia_donante2 = sum(edad_jep_donante2 == "INFANCIA"),
-    infancia_donante3 = sum(edad_jep_donante3 == "INFANCIA"),
-    infancia_donante4 = sum(edad_jep_donante4 == "INFANCIA"),
-    infancia_donante5 = sum(edad_jep_donante5 == "INFANCIA"),
-    
-    adolescencia_obs = sum(edad_jep_obs == "ADOLESCENCIA"),
-    adolescencia_donante1 = sum(edad_jep_donante1 == "ADOLESCENCIA"),
-    adolescencia_donante2 = sum(edad_jep_donante2 == "ADOLESCENCIA"),
-    adolescencia_donante3 = sum(edad_jep_donante3 == "ADOLESCENCIA"),
-    adolescencia_donante4 = sum(edad_jep_donante4 == "ADOLESCENCIA"),
-    adolescencia_donante5 = sum(edad_jep_donante5 == "ADOLESCENCIA")
-  	
-  ) %>%
-  arrange(yy_hecho)
+metrics_cv_secue <- generate_cv_summary(metrics_df_secue)
+metrics_cv_secue
 
 ```
 
-
-Calcular el impacto:
+WAI y WRAI:
 ```{r}
+comparison_secue_stat <- comparison_data(comparacion_secue)
 
-# Impacto para adultez
-impacto_adultez_secue <- calcular_impacto(donante_cols_adultez, observaciones_adultez, agregados_comparacion_secue)
-
-print(impacto_adultez_secue$wai)
-print(impacto_adultez_secue$mean_wai) 
-print(impacto_adultez_secue$wrai)
-print(impacto_adultez_secue$mean_wrai) 
-
-# Impacto para infancia
-impacto_infancia_secue <- calcular_impacto(donante_cols_infancia, observaciones_infancia, agregados_comparacion_secue)
-
-print(impacto_infancia_secue$wai)
-print(impacto_infancia_secue$mean_wai) 
-print(impacto_infancia_secue$wrai)
-print(impacto_infancia_secue$mean_wrai) 
-
-# Impacto para adolescencia
-impacto_adolescencia_secue <- calcular_impacto(donante_cols_adolescencia, observaciones_adolescencia, agregados_comparacion_secue)
-
-print(impacto_adolescencia_secue$wai)
-print(impacto_adolescencia_secue$mean_wai) 
-print(impacto_adolescencia_secue$wrai)
-print(impacto_adolescencia_secue$mean_wrai) 
-
+# Extraer estadísticos de los 5 folds
+stats_summary_secue <- generate_indicators_summary_by_class(comparison_secue_stat)
+stats_summary_secue
 
 ```

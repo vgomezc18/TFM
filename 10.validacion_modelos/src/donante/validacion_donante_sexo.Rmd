@@ -228,33 +228,94 @@ artif_donante_sexo_5 <- readRDS(paste0(output_dir,"/artif_donante_sexo_5.rds"))
 
 ```
 
-Función para indicadores de impacto de la detección y tratamiento de errores: 
+Funciones para hacer descriptivos: 
 
 ```{r}
 
-# Calcular WAI y WRAI
-calcular_impacto <- function(donante_cols, observaciones, datos) {
-  wai <- sapply(donante_cols, function(col) sum(datos[[col]] - datos[[observaciones]]))
-  wrai <- sapply(donante_cols, function(col) sum(datos[[col]] - datos[[observaciones]]) / sum(datos[[observaciones]]))
-  
-  list(
-    wai = wai,
-    mean_wai = mean(wai),
-    wrai = wrai,
-    mean_wrai = mean(wrai)
-  )
+comparison_data <- function(data) {
+    results_list <- list()
+    
+    for (i in 1:5) {
+        donor_col <- paste0("sexo_donante", i)
+        
+        result <- data[, .(
+            iguales = sum(sexo_obs == get(donor_col), na.rm = TRUE),
+            diferentes = sum(sexo_obs != get(donor_col), na.rm = TRUE),
+            donante = donor_col
+        )]
+        
+        result[, wrai := round(diferentes / (iguales + diferentes), 4)]
+        results_list[[i]] <- result
+    }
+    
+    final_result <- rbindlist(results_list)
+    return(final_result)
 }
 
-# Columnas de donantes y observaciones para mujeres
-donante_cols_mujeres <- paste0("mujeres_donante", 1:5)
-observaciones_mujeres <- "mujeres_obs"
+generate_indicators_summary <- function(data) {
+    # Verificar que las columnas necesarias están presentes
+    required_cols <- c("diferentes", "wrai")
+    if (!all(required_cols %in% colnames(data))) {
+        stop("Faltan una o más columnas necesarias en los datos.")
+    }
+    
+    # Convertir el data frame en data.table
+    data_dt <- as.data.table(data)
+    
+    # Calcular el resumen estadístico para todas las observaciones sin agrupar por sexo
+    stats_summary <- data.table(
+        Metric = c("diferentes", "wrai"),
+        Min = c(
+            round(min(data_dt$diferentes, na.rm = TRUE), 0),
+            paste0(round(min(data_dt$wrai, na.rm = TRUE) * 100, 2), "%")
+        ),
+        `1st_Qu.` = c(
+            round(quantile(data_dt$diferentes, 0.25, na.rm = TRUE), 0),
+            paste0(round(quantile(data_dt$wrai, 0.25, na.rm = TRUE) * 100, 2), "%")
+        ),
+        Median = c(
+            round(median(data_dt$diferentes, na.rm = TRUE), 0),
+            paste0(round(median(data_dt$wrai, na.rm = TRUE) * 100, 2), "%")
+        ),
+        Mean = c(
+            round(mean(data_dt$diferentes, na.rm = TRUE), 0),
+            paste0(round(mean(data_dt$wrai, na.rm = TRUE) * 100, 2), "%")
+        ),
+        `3rd_Qu.` = c(
+            round(quantile(data_dt$diferentes, 0.75, na.rm = TRUE), 0),
+            paste0(round(quantile(data_dt$wrai, 0.75, na.rm = TRUE) * 100, 2), "%")
+        ),
+        Max = c(
+            round(max(data_dt$diferentes, na.rm = TRUE), 0),
+            paste0(round(max(data_dt$wrai, na.rm = TRUE) * 100, 2), "%")
+        ),
+        SD = c(
+            round(sd(data_dt$diferentes, na.rm = TRUE), 2),
+            paste0(round(sd(data_dt$wrai, na.rm = TRUE) * 100, 2), "%")
+        )
+    )
+    
+    return(stats_summary)
+}
 
-# Columnas de donantes y observaciones para hombres
-donante_cols_hombres <- paste0("hombres_donante", 1:5)
-observaciones_hombres <- "hombres_obs"
+generate_cv_summary <- function(metrics_df) {
+  metrics_dt <- as.data.table(metrics_df)
+  
+  stats_summary <- data.table(
+    Metric = colnames(metrics_dt),
+    Min = paste0(sapply(metrics_dt, function(x) round(min(x, na.rm = TRUE)*100, 2)), "%"),
+    `1st_Qu.` = paste0(sapply(metrics_dt, function(x) round(quantile(x, 0.25, na.rm = TRUE)*100, 2)), "%"),
+    Median = paste0(sapply(metrics_dt, function(x) round(median(x, na.rm = TRUE)*100, 2)), "%"),
+    Mean = paste0(sapply(metrics_dt, function(x) round(mean(x, na.rm = TRUE)*100, 2)), "%"),
+    `3rd_Qu.` = paste0(sapply(metrics_dt, function(x) round(quantile(x, 0.75, na.rm = TRUE)*100, 2)), "%"),
+    Max = paste0(sapply(metrics_dt, function(x) round(max(x, na.rm = TRUE)*100, 2)), "%"),
+    SD = paste0(sapply(metrics_dt, function(x) round(sd(x, na.rm = TRUE)*100, 2)), "%")
+  )
+  
+  return(stats_summary)
+}
 
 ```
-
 
 # Desaparición:
 
@@ -283,7 +344,8 @@ comparacion_desap <- complete_violencias_unidas_aux %>%
 	merge(artif_donante_sexo_desap4, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
 	mutate(sexo_donante4 = as.factor(sexo_donante)) %>% select(-sexo_donante) %>%
 	merge(artif_donante_sexo_desap5, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
-	mutate(sexo_donante5 = as.factor(sexo_donante)) %>% select(-sexo_donante)
+	mutate(sexo_donante5 = as.factor(sexo_donante)) %>% select(-sexo_donante) %>%
+	as.data.table()
 
 ```
 
@@ -325,55 +387,19 @@ metrics_df_desap <- data.frame(
   Balanced_Accuracy = balanced_accuracy_list
 )
 
-# Calcular la media de las métricas
-mean_metrics_desap <- colMeans(metrics_df_desap)
-mean_metrics_desap
+metrics_cv_desap <- generate_cv_summary(metrics_df_desap)
+metrics_cv_desap
 
 ```
-Base de datos con observados e imputados: 
-
+WAI y WRAI:
 ```{r}
 
-agregados_comparacion_desap <- comparacion_desap %>%
-  group_by(yy_hecho) %>%
-  summarise(
-    hombres_obs = sum(sexo_obs == "HOMBRE"),
-    mujeres_obs = sum(sexo_obs == "MUJER"),
-    hombres_donante1 = sum(sexo_donante1 == "HOMBRE"),
-    mujeres_donante1 = sum(sexo_donante1 == "MUJER"),
-    hombres_donante2 = sum(sexo_donante2 == "HOMBRE"),
-    mujeres_donante2 = sum(sexo_donante2 == "MUJER"),
-    hombres_donante3 = sum(sexo_donante3 == "HOMBRE"),
-    mujeres_donante3 = sum(sexo_donante3 == "MUJER"),
-    hombres_donante4 = sum(sexo_donante4 == "HOMBRE"),
-    mujeres_donante4 = sum(sexo_donante4 == "MUJER"),
-    hombres_donante5 = sum(sexo_donante5 == "HOMBRE"),
-    mujeres_donante5 = sum(sexo_donante5 == "MUJER")
-  ) %>%
-  arrange(yy_hecho)
-```
+comparison_desap_stat <- comparison_data(comparacion_desap)
 
+# Extraer estadísticos de los 5 folds
+stats_summary_desap <- generate_indicators_summary(comparison_desap_stat)
+stats_summary_desap
 
-Calcular el impacto:
-```{r}
-
-# Impacto para mujeres
-impacto_mujeres_desap <- calcular_impacto(donante_cols_mujeres, observaciones_mujeres, agregados_comparacion_desap)
-
-print(impacto_mujeres_desap$wai)
-print(impacto_mujeres_desap$mean_wai) #En promedio los valores observados son mayores que los imputados. (-472.8)
-print(impacto_mujeres_desap$wrai)
-print(impacto_mujeres_desap$mean_wrai) #Los valores imputados son en promedio un -17% diferentes de los observados
-
-
-#impacto para hombres
-impacto_hombres_desap <- calcular_impacto(donante_cols_hombres, observaciones_hombres, agregados_comparacion_desap)
-
-print(impacto_hombres_desap$wai)
-print(impacto_hombres_desap$mean_wai)#En promedio los valores imputados son mayores que los observados 472.8
-print(impacto_hombres_desap$wrai)
-print(impacto_hombres_desap$mean_wrai) #Los valores imputados son en promedio un 2.15% diferentes de los observados.
-#Valor positivo que indica que los valores imputados son ligeramente mayores que los observados.
 ```
 
 # Homicidio:
@@ -403,7 +429,8 @@ comparacion_homi <- complete_violencias_unidas_aux %>%
 	merge(artif_donante_sexo_homi4, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
 	mutate(sexo_donante4 = as.factor(sexo_donante)) %>% select(-sexo_donante) %>%
 	merge(artif_donante_sexo_homi5, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
-	mutate(sexo_donante5 = as.factor(sexo_donante)) %>% select(-sexo_donante)
+	mutate(sexo_donante5 = as.factor(sexo_donante)) %>% select(-sexo_donante) %>%
+	as.data.table()
 
 ```
 
@@ -445,54 +472,20 @@ metrics_df_homi <- data.frame(
   Balanced_Accuracy = balanced_accuracy_list
 )
 
-# Calcular la media de las métricas
-mean_metrics_homi <- colMeans(metrics_df_homi)
-mean_metrics_homi
+metrics_cv_homi <- generate_cv_summary(metrics_df_homi)
+metrics_cv_homi
+
 
 ```
-Base de datos con observados e imputados: 
-
-```{r}
-agregados_comparacion_homi <- comparacion_homi %>%
-  group_by(yy_hecho) %>%
-  summarise(
-    hombres_obs = sum(sexo_obs == "HOMBRE"),
-    mujeres_obs = sum(sexo_obs == "MUJER"),
-    hombres_donante1 = sum(sexo_donante1 == "HOMBRE"),
-    mujeres_donante1 = sum(sexo_donante1 == "MUJER"),
-    hombres_donante2 = sum(sexo_donante2 == "HOMBRE"),
-    mujeres_donante2 = sum(sexo_donante2 == "MUJER"),
-    hombres_donante3 = sum(sexo_donante3 == "HOMBRE"),
-    mujeres_donante3 = sum(sexo_donante3 == "MUJER"),
-    hombres_donante4 = sum(sexo_donante4 == "HOMBRE"),
-    mujeres_donante4 = sum(sexo_donante4 == "MUJER"),
-    hombres_donante5 = sum(sexo_donante5 == "HOMBRE"),
-    mujeres_donante5 = sum(sexo_donante5 == "MUJER")
-  ) %>%
-  arrange(yy_hecho)
-```
-
-
-Calcular el impacto:
+WAI y WRAI:
 ```{r}
 
-# Impacto para mujeres
-impacto_mujeres_homi <- calcular_impacto(donante_cols_mujeres, observaciones_mujeres, agregados_comparacion_homi)
+comparison_homi_stat <- comparison_data(comparacion_homi)
 
-print(impacto_mujeres_homi$wai)
-print(impacto_mujeres_homi$mean_wai) #En promedio los valores observados son mayores que los imputados. (-1419.4)
-print(impacto_mujeres_homi$wrai)
-print(impacto_mujeres_homi$mean_wrai) #Los valores imputados son en promedio un -17% diferentes de los observados
+# Extraer estadísticos de los 5 folds
+stats_summary_homi <- generate_indicators_summary(comparison_homi_stat)
+stats_summary_homi
 
-
-#impacto para hombres
-impacto_hombres_homi <- calcular_impacto(donante_cols_hombres, observaciones_hombres, agregados_comparacion_homi)
-
-print(impacto_hombres_homi$wai)
-print(impacto_hombres_homi$mean_wai)#En promedio los valores imputados son mayores que los observados 1419.4
-print(impacto_hombres_homi$wrai)
-print(impacto_hombres_homi$mean_wrai) #Los valores imputados son en promedio un 1.7% diferentes de los observados.
-#Valor positivo que indica que los valores imputados son ligeramente mayores que los observados.
 ```
 
 # Reclutamiento:
@@ -522,7 +515,8 @@ comparacion_reclu <- complete_violencias_unidas_aux %>%
 	merge(artif_donante_sexo_reclu4, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
 	mutate(sexo_donante4 = as.factor(sexo_donante)) %>% select(-sexo_donante) %>%
 	merge(artif_donante_sexo_reclu5, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
-	mutate(sexo_donante5 = as.factor(sexo_donante)) %>% select(-sexo_donante)
+	mutate(sexo_donante5 = as.factor(sexo_donante)) %>% select(-sexo_donante) %>%
+	as.data.table()
 
 ```
 
@@ -564,56 +558,22 @@ metrics_df_reclu <- data.frame(
   Balanced_Accuracy = balanced_accuracy_list
 )
 
-# Calcular la media de las métricas
-mean_metrics_reclu <- colMeans(metrics_df_reclu)
-mean_metrics_reclu
+metrics_cv_reclu <- generate_cv_summary(metrics_df_reclu)
+metrics_cv_reclu
 
 ```
-Base de datos con observados e imputados: 
-
+WAI y WRAI:
 ```{r}
 
-agregados_comparacion_reclu <- comparacion_reclu %>%
-  group_by(yy_hecho) %>%
-  summarise(
-    hombres_obs = sum(sexo_obs == "HOMBRE"),
-    mujeres_obs = sum(sexo_obs == "MUJER"),
-    hombres_donante1 = sum(sexo_donante1 == "HOMBRE"),
-    mujeres_donante1 = sum(sexo_donante1 == "MUJER"),
-    hombres_donante2 = sum(sexo_donante2 == "HOMBRE"),
-    mujeres_donante2 = sum(sexo_donante2 == "MUJER"),
-    hombres_donante3 = sum(sexo_donante3 == "HOMBRE"),
-    mujeres_donante3 = sum(sexo_donante3 == "MUJER"),
-    hombres_donante4 = sum(sexo_donante4 == "HOMBRE"),
-    mujeres_donante4 = sum(sexo_donante4 == "MUJER"),
-    hombres_donante5 = sum(sexo_donante5 == "HOMBRE"),
-    mujeres_donante5 = sum(sexo_donante5 == "MUJER")
-  ) %>%
-  arrange(yy_hecho)
+comparison_reclu_stat <- comparison_data(comparacion_reclu)
+
+# Extraer estadísticos de los 5 folds
+stats_summary_reclu <- generate_indicators_summary(comparison_reclu_stat)
+stats_summary_reclu
+
 ```
 
 
-Calcular el impacto:
-```{r}
-
-# Impacto para mujeres
-impacto_mujeres_reclu <- calcular_impacto(donante_cols_mujeres, observaciones_mujeres, agregados_comparacion_reclu)
-
-print(impacto_mujeres_reclu$wai)
-print(impacto_mujeres_reclu$mean_wai) #En promedio los valores observados son mayores que los imputados. (-169)
-print(impacto_mujeres_reclu$wrai)
-print(impacto_mujeres_reclu$mean_wrai) #Los valores imputados son en promedio un -6.4% diferentes de los observados
-
-
-#impacto para hombres
-impacto_hombres_reclu <- calcular_impacto(donante_cols_hombres, observaciones_hombres, agregados_comparacion_reclu)
-
-print(impacto_hombres_reclu$wai)
-print(impacto_hombres_reclu$mean_wai)#En promedio los valores imputados son mayores que los observados 169
-print(impacto_hombres_reclu$wrai)
-print(impacto_hombres_reclu$mean_wrai) #Los valores imputados son en promedio un 3% diferentes de los observados.
-#Valor positivo que indica que los valores imputados son ligeramente mayores que los observados.
-```
 
 # Secuestro:
 
@@ -642,7 +602,8 @@ comparacion_secue <- complete_violencias_unidas_aux %>%
 	merge(artif_donante_sexo_secue4, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
 	mutate(sexo_donante4 = as.factor(sexo_donante)) %>% select(-sexo_donante) %>%
 	merge(artif_donante_sexo_secue5, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
-	mutate(sexo_donante5 = as.factor(sexo_donante)) %>% select(-sexo_donante)
+	mutate(sexo_donante5 = as.factor(sexo_donante)) %>% select(-sexo_donante) %>%
+	as.data.table()
 
 ```
 
@@ -684,602 +645,25 @@ metrics_df_secue <- data.frame(
   Balanced_Accuracy = balanced_accuracy_list
 )
 
-# Calcular la media de las métricas
-mean_metrics_secue <- colMeans(metrics_df_secue)
-mean_metrics_secue
+metrics_cv_secue <- generate_cv_summary(metrics_df_secue)
+metrics_cv_secue
 
 ```
-Base de datos con observados e imputados: 
 
+WAI y WRAI:
 ```{r}
 
-agregados_comparacion_secue <- comparacion_secue %>%
-  group_by(yy_hecho) %>%
-  summarise(
-    hombres_obs = sum(sexo_obs == "HOMBRE"),
-    mujeres_obs = sum(sexo_obs == "MUJER"),
-    hombres_donante1 = sum(sexo_donante1 == "HOMBRE"),
-    mujeres_donante1 = sum(sexo_donante1 == "MUJER"),
-    hombres_donante2 = sum(sexo_donante2 == "HOMBRE"),
-    mujeres_donante2 = sum(sexo_donante2 == "MUJER"),
-    hombres_donante3 = sum(sexo_donante3 == "HOMBRE"),
-    mujeres_donante3 = sum(sexo_donante3 == "MUJER"),
-    hombres_donante4 = sum(sexo_donante4 == "HOMBRE"),
-    mujeres_donante4 = sum(sexo_donante4 == "MUJER"),
-    hombres_donante5 = sum(sexo_donante5 == "HOMBRE"),
-    mujeres_donante5 = sum(sexo_donante5 == "MUJER")
-  ) %>%
-  arrange(yy_hecho)
-```
+comparison_secue_stat <- comparison_data(comparacion_secue)
 
-
-Calcular el impacto:
-```{r}
-
-# Impacto para mujeres
-impacto_mujeres_secue <- calcular_impacto(donante_cols_mujeres, observaciones_mujeres, agregados_comparacion_secue)
-
-print(impacto_mujeres_secue$wai)
-print(impacto_mujeres_secue$mean_wai) #En promedio los valores observados son mayores que los imputados. (-407.4)
-print(impacto_mujeres_secue$wrai)
-print(impacto_mujeres_secue$mean_wrai) #Los valores imputados son en promedio un -10% diferentes de los observados
-
-
-#impacto para hombres
-impacto_hombres_secue <- calcular_impacto(donante_cols_hombres, observaciones_hombres, agregados_comparacion_secue)
-
-print(impacto_hombres_secue$wai)
-print(impacto_hombres_secue$mean_wai)#En promedio los valores imputados son mayores que los observados 407.4
-print(impacto_hombres_secue$wrai)
-print(impacto_hombres_secue$mean_wrai) #Los valores imputados son en promedio un 3% diferentes de los observados.
-#Valor positivo que indica que los valores imputados son ligeramente mayores que los observados.
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-############################################
-REVISAR ESTA PARTE PORQUE LOS GRAFICOS DE ANTES PUEDEN SER UTILES!
-
-Resultados con datos reales completos:
-
-```{r}
-complete_desaparicion <- complete_violencias_unidas_aux %>%
-	filter(violencia == "desaparicion") %>%
-	group_by(sexo, yy_hecho) %>%
-  summarise(valor_real = n()) %>%
-  arrange(yy_hecho)
-
-complete_homicidio <- complete_violencias_unidas_aux %>%
-	filter(violencia == "homicidio") %>%
-	group_by(sexo, yy_hecho) %>%
-  summarise(valor_real = n()) %>%
-  arrange(yy_hecho)
-
-complete_reclutamiento <- complete_violencias_unidas_aux %>%
-	filter(violencia == "reclutamiento") %>%
-	group_by(sexo, yy_hecho) %>%
-  summarise(valor_real = n()) %>%
-  arrange(yy_hecho)
-
-complete_secuestro <- complete_violencias_unidas_aux %>%
-	filter(violencia == "secuestro") %>%
-	group_by(sexo, yy_hecho) %>%
-  summarise(valor_real = n()) %>%
-  arrange(yy_hecho)
-```
-
-
-
-Se imputa por Regresión por periodos de tiempo (usando la misma imputación que 07.modelos_imputacion):
-
-```{r}
-#Convertimos la variable sexo en factor: 
-
-violencias_artificial_nas_1$sexo <- factor(violencias_artificial_nas_1$sexo, levels = c("HOMBRE", "MUJER"))
-
-violencias_artificial_nas_2$sexo <- factor(violencias_artificial_nas_2$sexo, levels = c("HOMBRE", "MUJER"))
-
-violencias_artificial_nas_3$sexo <- factor(violencias_artificial_nas_3$sexo, levels = c("HOMBRE", "MUJER"))
-
-violencias_artificial_nas_4$sexo <- factor(violencias_artificial_nas_4$sexo, levels = c("HOMBRE", "MUJER"))
-
-violencias_artificial_nas_5$sexo <- factor(violencias_artificial_nas_5$sexo, levels = c("HOMBRE", "MUJER"))
-
-```
-
-Dejo las variables que se usarán en la imputación y realizamos sólo 1 imputación (m=1) para realizar una imputación simple:
-
-```{r}
-# Función para el procesamiento de distintos tipos de violencia en un rango de años
-procesar_violencia <- function(data, tipo_violencia, start_year, end_year) {
-  violencia_filtrada <- data %>%
-  	ungroup()%>%
-    filter(violencia == tipo_violencia,
-           yy_hecho >= start_year & yy_hecho <= end_year) %>%
-    select(yy_hecho, muni_code_hecho, 
-           discapital_mpio, predo_rural_mpio, areaoficialkm2_mpio,
-           asistesc_depto, 
-           nac_mujeres_mpio, defunciones_mpio,
-    			 sexo)
-  
-  print(paste("NA counts for", tipo_violencia, "from", start_year, "to", end_year))
-  print(colSums(is.na(violencia_filtrada)))
-  
-  # Especificar los métodos de imputación para cada variable
-  meth <- c("pmm", "pmm", 
-            "pmm", "pmm", "pmm",
-            "pmm",
-            "pmm", "pmm",
-  					"logreg")
-  
-  # Ejecutar la imputación múltiple
-  violencia_imp_temp <- mice(violencia_filtrada, method = meth, m = 1, seed = 123)
-  
-  # Obtener el conjunto de datos completo imputado
-  violencia_imp <- complete(violencia_imp_temp, action = "long") %>%
-    select(-.imp, -.id)
-  
-  print(paste("NA counts after imputation for", tipo_violencia, "from", start_year, "to", end_year))
-  print(colSums(is.na(violencia_imp)))
-  
-  # Crear indicadores de imputación
-  imputed_flags <- as.data.frame(is.na(violencia_filtrada))
-  
-  violencia_imp <- violencia_imp %>%
-    mutate(sexo_imputed = imputed_flags$sexo & !is.na(sexo))
-  
-  # Agrupar y resumir los datos
-  result <- violencia_imp %>%
-    group_by(sexo, yy_hecho) %>%
-    summarise(imp_regresion_log = n()) %>%
-    arrange(yy_hecho, sexo) 
-  
-  return(result)
-}
-
-# Tipos de violencia a procesar
-tipos_violencia <- c("desaparicion", "homicidio", "reclutamiento", "secuestro")
-
-# Periodos de años a procesar
-periodos <- list(
-  c(1998, 2016)
-)
-
-# Lista para almacenar los resultados
-resultados1 <- list()
-resultados2 <- list()
-resultados3 <- list()
-resultados4 <- list()
-resultados5 <- list()
-
-# Procesar cada combinación de tipo de violencia y periodo de años
-
-# Grupo 1
-for (tipo in tipos_violencia) {
-  for (periodo in periodos) {
-    start_year <- periodo[1]
-    end_year <- periodo[2]
-    result1 <- procesar_violencia(violencias_artificial_nas_1, tipo, start_year, end_year)
-    resultados1[[paste(tipo, start_year, end_year, sep = "_")]] <- result1
-  }
-}
-artif_regresion_sexo_desap1 <- resultados1[["desaparicion_1998_2016"]]
-artif_regresion_sexo_homi1 <- resultados1[["homicidio_1998_2016"]]
-artif_regresion_sexo_reclu1 <- resultados1[["reclutamiento_1998_2016"]]
-artif_regresion_sexo_secue1 <- resultados1[["secuestro_1998_2016"]]
-
-# Grupo 2
-for (tipo in tipos_violencia) {
-  for (periodo in periodos) {
-    start_year <- periodo[1]
-    end_year <- periodo[2]
-    result2 <- procesar_violencia(violencias_artificial_nas_2, tipo, start_year, end_year)
-    resultados2[[paste(tipo, start_year, end_year, sep = "_")]] <- result2
-  }
-}
-artif_regresion_sexo_desap2 <- resultados2[["desaparicion_1998_2016"]]
-artif_regresion_sexo_homi2 <- resultados2[["homicidio_1998_2016"]]
-artif_regresion_sexo_reclu2 <- resultados2[["reclutamiento_1998_2016"]]
-artif_regresion_sexo_secue2 <- resultados2[["secuestro_1998_2016"]]
-
-# Grupo 3
-for (tipo in tipos_violencia) {
-  for (periodo in periodos) {
-    start_year <- periodo[1]
-    end_year <- periodo[2]
-    result3 <- procesar_violencia(violencias_artificial_nas_3, tipo, start_year, end_year)
-    resultados3[[paste(tipo, start_year, end_year, sep = "_")]] <- result3
-  }
-}
-artif_regresion_sexo_desap3 <- resultados3[["desaparicion_1998_2016"]]
-artif_regresion_sexo_homi3 <- resultados3[["homicidio_1998_2016"]]
-artif_regresion_sexo_reclu3 <- resultados3[["reclutamiento_1998_2016"]]
-artif_regresion_sexo_secue3 <- resultados3[["secuestro_1998_2016"]]
-
-# Grupo 4
-for (tipo in tipos_violencia) {
-  for (periodo in periodos) {
-    start_year <- periodo[1]
-    end_year <- periodo[2]
-    result4 <- procesar_violencia(violencias_artificial_nas_4, tipo, start_year, end_year)
-    resultados4[[paste(tipo, start_year, end_year, sep = "_")]] <- result4
-  }
-}
-artif_regresion_sexo_desap4 <- resultados4[["desaparicion_1998_2016"]]
-artif_regresion_sexo_homi4 <- resultados4[["homicidio_1998_2016"]]
-artif_regresion_sexo_reclu4 <- resultados4[["reclutamiento_1998_2016"]]
-artif_regresion_sexo_secue4 <- resultados4[["secuestro_1998_2016"]]
-
-# Grupo 5
-for (tipo in tipos_violencia) {
-  for (periodo in periodos) {
-    start_year <- periodo[1]
-    end_year <- periodo[2]
-    result5 <- procesar_violencia(violencias_artificial_nas_5, tipo, start_year, end_year)
-    resultados5[[paste(tipo, start_year, end_year, sep = "_")]] <- result5
-  }
-}
-artif_regresion_sexo_desap5 <- resultados5[["desaparicion_1998_2016"]]
-artif_regresion_sexo_homi5 <- resultados5[["homicidio_1998_2016"]]
-artif_regresion_sexo_reclu5 <- resultados5[["reclutamiento_1998_2016"]]
-artif_regresion_sexo_secue5 <- resultados5[["secuestro_1998_2016"]]
-
+# Extraer estadísticos de los 5 folds
+stats_summary_secue <- generate_indicators_summary(comparison_secue_stat)
+stats_summary_secue
 
 ```
 
 
-Unir resultados reales con los artificiales imputados: 
-
-```{r}
-# Grupo 1
-comparacion_desap1 <- complete_desaparicion %>% 
-	merge(artif_donante_sexo_desap1, by = c("sexo", "yy_hecho")) %>%
-	merge(artif_regresion_sexo_desap1, by = c("sexo", "yy_hecho") )
-
-comparacion_homi1 <- complete_homicidio %>% 
-	merge(artif_donante_sexo_homi1, by = c("sexo", "yy_hecho")) %>%
-	merge(artif_regresion_sexo_homi1, by = c("sexo", "yy_hecho") )
-
-comparacion_secue1 <- complete_secuestro %>% 
-	merge(artif_donante_sexo_secue1, by = c("sexo", "yy_hecho")) %>%
-	merge(artif_regresion_sexo_secue1, by = c("sexo", "yy_hecho") )
-
-comparacion_reclu1 <- complete_reclutamiento %>% 
-	merge(artif_donante_sexo_reclu1, by = c("sexo", "yy_hecho")) %>%
-	merge(artif_regresion_sexo_reclu1, by = c("sexo", "yy_hecho") )
-
-```
 
 
-Comparar los resultados donante y regresión:
-
-# Desaparición
-
-Mujeres:
-
-```{r}
-
-mujeres_proyecto_desap_VC <- comparacion_desap %>%
-	  filter(sexo == "MUJER",
-	  			 yy_hecho >= 1993) %>% 
-    arrange((yy_hecho))
-
-plot_desap_mujeres_year_VC <- mujeres_proyecto_desap_VC %>%
-    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-    ggplot(aes(x = yy_hecho)) +
-    geom_line(aes(y = valor_real, color = "Valor real"),  size = 1) +
-	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
-	  geom_line(aes(y = imp_regresion_log,  color = "Imputado por Regresión Log"),
-	  					size = 1, linetype = "dashed") +
-    theme_minimal() +
-    theme(axis.text.x = element_text(size = 11, angle = 90),
-        axis.title.y = element_text(size = 11),
-        axis.ticks.x = element_line(size = 0.1)) +
-    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
-		scale_y_continuous(breaks = seq(0, max(mujeres_proyecto_desap_VC$valor_real,
-																				 na.rm = TRUE), by = 30)) +
-    theme(legend.position = "bottom") +
-    labs(x = "Año",
-         y = "Número de víctimas mujeres",
-         color = "",
-    		 title = "Desapariciones Forzadas - Validación Cruzada") +
-    scale_colour_manual(values = c("Valor real" = "#434343",
-    															 "Imputado por Donante" = "red",
-    															 "Imputado por Regresión Log" = "#26C33A"))
-
-plot_desap_mujeres_year_VC
-
-ggsave(paste0(output_dir,"/sexo/plot_desap_mujeres_year_VC.jpg"),
-			 plot_desap_mujeres_year_VC, width = 10, height = 7)
-```
-
-Hombres:
-
-```{r}
-
-hombres_proyecto_desap_VC <- comparacion_desap %>%
-	  filter(sexo == "HOMBRE",
-	  			 yy_hecho >= 1993) %>% 
-    arrange((yy_hecho))
-
-plot_desap_hombres_year_VC <- hombres_proyecto_desap_VC %>%
-    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-    ggplot(aes(x = yy_hecho)) +
-    geom_line(aes(y = valor_real, color = "Valor real"),  size = 1) +
-	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
-	  geom_line(aes(y = imp_regresion_log,  color = "Imputado por Regresión Log"),
-	  					size = 1, linetype = "dashed") +
-    theme_minimal() +
-    theme(axis.text.x = element_text(size = 11, angle = 90),
-        axis.title.y = element_text(size = 11),
-        axis.ticks.x = element_line(size = 0.1)) +
-    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
-		scale_y_continuous(breaks = seq(0, max(hombres_proyecto_desap_VC$imp_donante,
-																				 na.rm = TRUE), by = 200)) +
-    theme(legend.position = "bottom") +
-    labs(x = "Año",
-         y = "Número de víctimas hombres",
-         color = "",
-    		 title = "Desapariciones Forzadas - Validación Cruzada") +
-    scale_colour_manual(values = c("Valor real" = "#434343",
-    															 "Imputado por Donante" = "red",
-    															 "Imputado por Regresión Log" = "#26C33A"))
-
-plot_desap_hombres_year_VC
-
-ggsave(paste0(output_dir,"/sexo/plot_desap_hombres_year_VC.jpg"),
-			 plot_desap_hombres_year_VC, width = 10, height = 7)
-```
-
-# Homicidio
-
-Mujeres:
-
-```{r}
-
-mujeres_proyecto_homi_VC <- comparacion_homi %>%
-	  filter(sexo == "MUJER",
-	  			 yy_hecho >= 1993) %>% 
-    arrange((yy_hecho))
-
-plot_homi_mujeres_year_VC <- mujeres_proyecto_homi_VC %>%
-    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-    ggplot(aes(x = yy_hecho)) +
-    geom_line(aes(y = valor_real, color = "Valor real"),  size = 1) +
-	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
-	  geom_line(aes(y = imp_regresion_log,  color = "Imputado por Regresión Log"),
-	  					size = 1, linetype = "dashed") +
-    theme_minimal() +
-    theme(axis.text.x = element_text(size = 11, angle = 90),
-        axis.title.y = element_text(size = 11),
-        axis.ticks.x = element_line(size = 0.1)) +
-    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
-		scale_y_continuous(breaks = seq(0, max(mujeres_proyecto_homi_VC$valor_real,
-																				 na.rm = TRUE), by = 50)) +
-    theme(legend.position = "bottom") +
-    labs(x = "Año",
-         y = "Número de víctimas mujeres",
-         color = "",
-    		 title = "Homicidios - Validación Cruzada") +
-    scale_colour_manual(values = c("Valor real" = "#434343",
-    															 "Imputado por Donante" = "red",
-    															 "Imputado por Regresión Log" = "#26C33A"))
-
-plot_homi_mujeres_year_VC
-
-ggsave(paste0(output_dir,"/sexo/plot_homi_mujeres_year_VC.jpg"),
-			 plot_homi_mujeres_year_VC, width = 10, height = 7)
-```
-
-Hombres:
-
-```{r}
-
-hombres_proyecto_homi_VC <- comparacion_homi %>%
-	  filter(sexo == "HOMBRE",
-	  			 yy_hecho >= 1993) %>% 
-    arrange((yy_hecho))
-
-plot_homi_hombres_year_VC <- hombres_proyecto_homi_VC %>%
-    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-    ggplot(aes(x = yy_hecho)) +
-    geom_line(aes(y = valor_real, color = "Valor real"),  size = 1) +
-	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
-	  geom_line(aes(y = imp_regresion_log,  color = "Imputado por Regresión Log"),
-	  					size = 1, linetype = "dashed") +
-    theme_minimal() +
-    theme(axis.text.x = element_text(size = 11, angle = 90),
-        axis.title.y = element_text(size = 11),
-        axis.ticks.x = element_line(size = 0.1)) +
-    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
-		scale_y_continuous(breaks = seq(0, max(hombres_proyecto_homi_VC$imp_donante,
-																				 na.rm = TRUE), by = 1000)) +
-    theme(legend.position = "bottom") +
-    labs(x = "Año",
-         y = "Número de víctimas hombres",
-         color = "",
-    		 title = "Homicidios - Validación Cruzada") +
-    scale_colour_manual(values = c("Valor real" = "#434343",
-    															 "Imputado por Donante" = "red",
-    															 "Imputado por Regresión Log" = "#26C33A"))
-
-plot_homi_hombres_year_VC
-
-ggsave(paste0(output_dir,"/sexo/plot_homi_hombres_year_VC.jpg"),
-			 plot_homi_hombres_year_VC, width = 10, height = 7)
-```
-
-# Reclutamiento
-
-Mujeres:
-
-```{r}
-
-mujeres_proyecto_reclu_VC <- comparacion_reclu %>%
-	  filter(sexo == "MUJER",
-	  			 yy_hecho >= 1993) %>% 
-    arrange((yy_hecho))
-
-plot_reclu_mujeres_year_VC <- mujeres_proyecto_reclu_VC %>%
-    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-    ggplot(aes(x = yy_hecho)) +
-    geom_line(aes(y = valor_real, color = "Valor real"),  size = 1) +
-	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
-	  geom_line(aes(y = imp_regresion_log,  color = "Imputado por Regresión Log"),
-	  					size = 1, linetype = "dashed") +
-    theme_minimal() +
-    theme(axis.text.x = element_text(size = 11, angle = 90),
-        axis.title.y = element_text(size = 11),
-        axis.ticks.x = element_line(size = 0.1)) +
-    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
-		scale_y_continuous(breaks = seq(0, max(mujeres_proyecto_reclu_VC$valor_real,
-																				 na.rm = TRUE), by = 20)) +
-    theme(legend.position = "bottom") +
-    labs(x = "Año",
-         y = "Número de víctimas mujeres",
-         color = "",
-    		 title = "Reclutamientos - Validación Cruzada") +
-    scale_colour_manual(values = c("Valor real" = "#434343",
-    															 "Imputado por Donante" = "red",
-    															 "Imputado por Regresión Log" = "#26C33A"))
-
-plot_reclu_mujeres_year_VC
-
-ggsave(paste0(output_dir,"/sexo/plot_reclu_mujeres_year_VC.jpg"),
-			 plot_reclu_mujeres_year_VC, width = 10, height = 7)
-```
-
-Hombres:
-
-```{r}
-
-hombres_proyecto_reclu_VC <- comparacion_reclu %>%
-	  filter(sexo == "HOMBRE",
-	  			 yy_hecho >= 1993) %>% 
-    arrange((yy_hecho))
-
-plot_reclu_hombres_year_VC <- hombres_proyecto_reclu_VC %>%
-    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-    ggplot(aes(x = yy_hecho)) +
-    geom_line(aes(y = valor_real, color = "Valor real"),  size = 1) +
-	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
-	  geom_line(aes(y = imp_regresion_log,  color = "Imputado por Regresión Log"),
-	  					size = 1, linetype = "dashed") +
-    theme_minimal() +
-    theme(axis.text.x = element_text(size = 11, angle = 90),
-        axis.title.y = element_text(size = 11),
-        axis.ticks.x = element_line(size = 0.1)) +
-    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
-		scale_y_continuous(breaks = seq(0, max(hombres_proyecto_reclu_VC$imp_donante,
-																				 na.rm = TRUE), by = 50)) +
-    theme(legend.position = "bottom") +
-    labs(x = "Año",
-         y = "Número de víctimas hombres",
-         color = "",
-    		 title = "Reclutamientos - Validación Cruzada") +
-    scale_colour_manual(values = c("Valor real" = "#434343",
-    															 "Imputado por Donante" = "red",
-    															 "Imputado por Regresión Log" = "#26C33A"))
-
-plot_reclu_hombres_year_VC
-
-ggsave(paste0(output_dir,"/sexo/plot_reclu_hombres_year_VC.jpg"),
-			 plot_reclu_hombres_year_VC, width = 10, height = 7)
-```
-
-# Secuestro
-
-Mujeres:
-
-```{r}
-
-mujeres_proyecto_secue_VC <- comparacion_secue %>%
-	  filter(sexo == "MUJER",
-	  			 yy_hecho >= 1993) %>% 
-    arrange((yy_hecho))
-
-plot_secue_mujeres_year_VC <- mujeres_proyecto_secue_VC %>%
-    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-    ggplot(aes(x = yy_hecho)) +
-    geom_line(aes(y = valor_real, color = "Valor real"),  size = 1) +
-	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
-	  geom_line(aes(y = imp_regresion_log,  color = "Imputado por Regresión Log"),
-	  					size = 1, linetype = "dashed") +
-    theme_minimal() +
-    theme(axis.text.x = element_text(size = 11, angle = 90),
-        axis.title.y = element_text(size = 11),
-        axis.ticks.x = element_line(size = 0.1)) +
-    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
-		scale_y_continuous(breaks = seq(0, max(mujeres_proyecto_secue_VC$valor_real,
-																				 na.rm = TRUE), by = 50)) +
-    theme(legend.position = "bottom") +
-    labs(x = "Año",
-         y = "Número de víctimas mujeres",
-         color = "",
-    		 title = "Secuestros - Validación Cruzada") +
-    scale_colour_manual(values = c("Valor real" = "#434343",
-    															 "Imputado por Donante" = "red",
-    															 "Imputado por Regresión Log" = "#26C33A"))
-
-plot_secue_mujeres_year_VC
-
-ggsave(paste0(output_dir,"/sexo/plot_secue_mujeres_year_VC.jpg"),
-			 plot_secue_mujeres_year_VC, width = 10, height = 7)
-```
-
-Hombres:
-
-```{r}
-
-hombres_proyecto_secue_VC <- comparacion_secue %>%
-	  filter(sexo == "HOMBRE",
-	  			 yy_hecho >= 1993) %>% 
-    arrange((yy_hecho))
-
-plot_secue_hombres_year_VC <- hombres_proyecto_secue_VC %>%
-    mutate(yy_hecho = as.numeric(yy_hecho)) %>% 
-    ggplot(aes(x = yy_hecho)) +
-    geom_line(aes(y = valor_real, color = "Valor real"),  size = 1) +
-	  geom_line(aes(y = imp_donante,  color = "Imputado por Donante"), size = 1) +
-	  geom_line(aes(y = imp_regresion_log,  color = "Imputado por Regresión Log"),
-	  					size = 1, linetype = "dashed") +
-    theme_minimal() +
-    theme(axis.text.x = element_text(size = 11, angle = 90),
-        axis.title.y = element_text(size = 11),
-        axis.ticks.x = element_line(size = 0.1)) +
-    scale_x_continuous(breaks = seq(1980, 2016, 2)) +
-		scale_y_continuous(breaks = seq(0, max(hombres_proyecto_secue_VC$imp_donante,
-																				 na.rm = TRUE), by = 150)) +
-    theme(legend.position = "bottom") +
-    labs(x = "Año",
-         y = "Número de víctimas hombres",
-         color = "",
-    		 title = "Secuestros - Validación Cruzada") +
-    scale_colour_manual(values = c("Valor real" = "#434343",
-    															 "Imputado por Donante" = "red",
-    															 "Imputado por Regresión Log" = "#26C33A"))
-
-plot_secue_hombres_year_VC
-
-ggsave(paste0(output_dir,"/sexo/plot_secue_hombres_year_VC.jpg"),
-			 plot_secue_hombres_year_VC, width = 10, height = 7)
-```
 
 
 
