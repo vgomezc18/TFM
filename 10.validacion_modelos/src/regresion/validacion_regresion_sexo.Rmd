@@ -245,26 +245,6 @@ Funciones para hacer descriptivos:
 
 ```{r}
 
-comparison_data <- function(data) {
-    results_list <- list()
-    
-    for (i in 1:5) {
-        donor_col <- paste0("sexo_regresion", i)
-        
-        result <- data[, .(
-            iguales = sum(sexo_obs == get(donor_col), na.rm = TRUE),
-            diferentes = sum(sexo_obs != get(donor_col), na.rm = TRUE),
-            regresion = donor_col
-        )]
-        
-        result[, wrai := round(diferentes / (iguales + diferentes), 4)]
-        results_list[[i]] <- result
-    }
-    
-    final_result <- rbindlist(results_list)
-    return(final_result)
-}
-
 generate_indicators_summary <- function(data) {
     # Verificar que las columnas necesarias están presentes
     required_cols <- c("diferentes", "wrai")
@@ -311,22 +291,99 @@ generate_indicators_summary <- function(data) {
     return(stats_summary)
 }
 
-generate_cv_summary <- function(metrics_df) {
-  metrics_dt <- as.data.table(metrics_df)
+# Para generar data con wai y wrai
+comparison_data <- function(data) {
+  results_list <- list()
+  categorias_sexo <- unique(data$sexo_obs)
+  for (categoria in categorias_sexo) {
+    data_filtrada <- data[sexo_obs == categoria]
+    
+    for (i in 1:5) {
+      donor_col <- paste0("sexo_regresion", i)
+      
+      result <- data_filtrada[, .(
+        iguales = sum(sexo_obs == get(donor_col), na.rm = TRUE),
+        diferentes = sum(sexo_obs != get(donor_col), na.rm = TRUE),
+        regresion = donor_col 
+      )]
+      
+      result[, wrai := round(diferentes / (iguales + diferentes), 4)]
+      result[, categoria := categoria] 
+      results_list[[paste0(categoria, "_", i)]] <- result
+    }
+  }
   
-  stats_summary <- data.table(
-    Metric = colnames(metrics_dt),
-    Min = paste0(sapply(metrics_dt, function(x) round(min(x, na.rm = TRUE)*100, 2)), "%"),
-    `1st_Qu.` = paste0(sapply(metrics_dt, function(x) round(quantile(x, 0.25, na.rm = TRUE)*100, 2)), "%"),
-    Median = paste0(sapply(metrics_dt, function(x) round(median(x, na.rm = TRUE)*100, 2)), "%"),
-    Mean = paste0(sapply(metrics_dt, function(x) round(mean(x, na.rm = TRUE)*100, 2)), "%"),
-    `3rd_Qu.` = paste0(sapply(metrics_dt, function(x) round(quantile(x, 0.75, na.rm = TRUE)*100, 2)), "%"),
-    Max = paste0(sapply(metrics_dt, function(x) round(max(x, na.rm = TRUE)*100, 2)), "%"),
-    SD = paste0(sapply(metrics_dt, function(x) round(sd(x, na.rm = TRUE)*100, 2)), "%")
-  )
-  
-  return(stats_summary)
+  final_result <- rbindlist(results_list)
+  return(final_result)
 }
+
+
+# Para descriptivos de WAI y WRAI de los 5 folds y de cada clase
+generate_indicators_summary_by_class <- function(data) {
+  # Verificar que las columnas necesarias están presentes
+  required_cols <- c("categoria", "diferentes", "wrai")
+  if (!all(required_cols %in% colnames(data))) {
+    stop("Faltan una o más columnas necesarias en los datos.")
+  }
+  
+  # Convertir el data frame en data.table
+  data_dt <- as.data.table(data)
+  
+  # Inicializar una lista para almacenar los resúmenes por sexo
+  summary_list <- list()
+  
+  # Agrupar por sexo
+  sexos <- unique(data_dt$categoria)
+  
+  # Iterar sobre cada sexo
+  for (sexo in sexos) {
+    # Filtrar los datos correspondientes a la sexo actual
+    sexo_data <- data_dt[categoria == sexo]
+    
+    # Calcular el resumen estadístico para cada métrica dentro de esta sexo
+    stats_summary <- data.table(
+      sexo = sexo,
+      Metric = c("diferentes", "wrai"),
+      Min = c(
+        round(min(sexo_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(min(sexo_data$wrai, na.rm = TRUE) * 100, 2), "%")
+      ),
+      `1st_Qu.` = c(
+        round(quantile(sexo_data$diferentes, 0.25, na.rm = TRUE), 0),
+        paste0(round(quantile(sexo_data$wrai, 0.25, na.rm = TRUE) * 100, 2), "%")
+      ),
+      Median = c(
+        round(median(sexo_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(median(sexo_data$wrai, na.rm = TRUE) * 100, 2), "%")
+      ),
+      Mean = c(
+        round(mean(sexo_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(mean(sexo_data$wrai, na.rm = TRUE) * 100, 2), "%")
+      ),
+      `3rd_Qu.` = c(
+        round(quantile(sexo_data$diferentes, 0.75, na.rm = TRUE), 0),
+        paste0(round(quantile(sexo_data$wrai, 0.75, na.rm = TRUE) * 100, 2), "%")
+      ),
+      Max = c(
+        round(max(sexo_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(max(sexo_data$wrai, na.rm = TRUE) * 100, 2), "%")
+      ),
+      SD = c(
+        round(sd(sexo_data$diferentes, na.rm = TRUE), 2),
+        paste0(round(sd(sexo_data$wrai, na.rm = TRUE) * 100, 2), "%")
+      )
+    )
+    
+    # Agregar el resumen estadístico de esta sexo a la lista
+    summary_list[[sexo]] <- stats_summary
+  }
+  
+  # Combinar todos los resúmenes en un solo data.table
+  final_summary <- rbindlist(summary_list)
+  
+  return(final_summary)
+}
+
 
 ```
 
@@ -411,7 +468,7 @@ WAI y WRAI:
 comparison_desap_stat <- comparison_data(comparacion_desap)
 
 # Extraer estadísticos de los 5 folds
-stats_summary_desap <- generate_indicators_summary(comparison_desap_stat)
+stats_summary_desap <- generate_indicators_summary_by_class(comparison_desap_stat)
 stats_summary_desap
 
 ```
@@ -496,7 +553,7 @@ WAI y WRAI:
 comparison_homi_stat <- comparison_data(comparacion_homi)
 
 # Extraer estadísticos de los 5 folds
-stats_summary_homi <- generate_indicators_summary(comparison_homi_stat)
+stats_summary_homi <- generate_indicators_summary_by_class(comparison_homi_stat)
 stats_summary_homi
 
 ```
@@ -581,7 +638,7 @@ WAI y WRAI:
 comparison_reclu_stat <- comparison_data(comparacion_reclu)
 
 # Extraer estadísticos de los 5 folds
-stats_summary_reclu <- generate_indicators_summary(comparison_reclu_stat)
+stats_summary_reclu <- generate_indicators_summary_by_class(comparison_reclu_stat)
 stats_summary_reclu
 
 ```
@@ -666,7 +723,7 @@ WAI y WRAI:
 comparison_secue_stat <- comparison_data(comparacion_secue)
 
 # Extraer estadísticos de los 5 folds
-stats_summary_secue <- generate_indicators_summary(comparison_secue_stat)
+stats_summary_secue <- generate_indicators_summary_by_class(comparison_secue_stat)
 stats_summary_secue
 
 ```
