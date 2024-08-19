@@ -515,6 +515,7 @@ for (name in data_names) {
 # Crear un data frame con las métricas
 metrics_df_desap <- data.frame(
   Dataset = data_names,
+  Accuracy = sapply(metrics_list, function(x) x["Accuracy"]),
   Sensitivity = sensitivity_list,
   Specificity = specificity_list,
   Pos_Pred_Value = pos_pred_value_list,
@@ -607,6 +608,7 @@ for (name in data_names) {
 # Crear un data frame con las métricas
 metrics_df_homi <- data.frame(
   Dataset = data_names,
+  Accuracy = sapply(metrics_list, function(x) x["Accuracy"]),
   Sensitivity = sensitivity_list,
   Specificity = specificity_list,
   Pos_Pred_Value = pos_pred_value_list,
@@ -700,6 +702,7 @@ for (name in data_names) {
 # Crear un data frame con las métricas
 metrics_df_reclu <- data.frame(
   Dataset = data_names,
+  Accuracy = sapply(metrics_list, function(x) x["Accuracy"]),
   Sensitivity = sensitivity_list,
   Specificity = specificity_list,
   Pos_Pred_Value = pos_pred_value_list,
@@ -792,6 +795,7 @@ for (name in data_names) {
 # Crear un data frame con las métricas
 metrics_df_secue <- data.frame(
   Dataset = data_names,
+  Accuracy = sapply(metrics_list, function(x) x["Accuracy"]),
   Sensitivity = sensitivity_list,
   Specificity = specificity_list,
   Pos_Pred_Value = pos_pred_value_list,
