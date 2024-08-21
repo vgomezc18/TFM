@@ -79,22 +79,71 @@ table(violencias_artificial_nas_1$violencia,
 			violencias_artificial_nas_1$grupo,
 			violencias_artificial_nas_1$sexo, useNA = "always")
 
+#conteos de clase antes de la imputación
+conteos_sexo_ant1 <- violencias_artificial_nas_1 %>%
+	mutate(categoria = sexo) %>%
+	group_by(categoria, violencia) %>%
+	summarise(n_class= n()) %>%
+	mutate(regresion = "sexo_regresion1") %>%
+	ungroup() %>%
+	group_by(violencia) %>%
+	mutate(N = sum(n_class))
 
 violencias_artificial_nas_2 <- complete_violencias_unidas_aux %>%
 	mutate(sexo = case_when(grupo == 2 ~ NA,
 													TRUE ~ sexo))
 
+#conteos de clase antes de la imputación
+conteos_sexo_ant2 <- violencias_artificial_nas_2 %>%
+	mutate(categoria = sexo) %>%
+	group_by(categoria, violencia) %>%
+	summarise(n_class= n()) %>%
+	mutate(regresion = "sexo_regresion2") %>%
+	ungroup() %>%
+	group_by(violencia) %>%
+	mutate(N = sum(n_class))
+
 violencias_artificial_nas_3 <- complete_violencias_unidas_aux %>%
 	mutate(sexo = case_when(grupo == 3 ~ NA,
 													TRUE ~ sexo))
+
+#conteos de clase antes de la imputación
+conteos_sexo_ant3 <- violencias_artificial_nas_3 %>%
+	mutate(categoria = sexo) %>%
+	group_by(categoria, violencia) %>%
+	summarise(n_class= n()) %>%
+	mutate(regresion = "sexo_regresion3") %>%
+	ungroup() %>%
+	group_by(violencia) %>%
+	mutate(N = sum(n_class))
 
 violencias_artificial_nas_4 <- complete_violencias_unidas_aux %>%
 	mutate(sexo = case_when(grupo == 4 ~ NA,
 													TRUE ~ sexo))
 
+#conteos de clase antes de la imputación
+conteos_sexo_ant4 <- violencias_artificial_nas_4 %>%
+	mutate(categoria = sexo) %>%
+	group_by(categoria, violencia) %>%
+	summarise(n_class= n()) %>%
+	mutate(regresion = "sexo_regresion4") %>%
+	ungroup() %>%
+	group_by(violencia) %>%
+	mutate(N = sum(n_class))
+
 violencias_artificial_nas_5 <- complete_violencias_unidas_aux %>%
 	mutate(sexo = case_when(grupo == 5 ~ NA,
 													TRUE ~ sexo))
+
+#conteos de clase antes de la imputación
+conteos_sexo_ant5 <- violencias_artificial_nas_5 %>%
+	mutate(categoria = sexo) %>%
+	group_by(categoria, violencia) %>%
+	summarise(n_class= n()) %>%
+	mutate(regresion = "sexo_regresion5") %>%
+	ungroup() %>%
+	group_by(violencia) %>%
+	mutate(N = sum(n_class))
 
 ```
 
@@ -245,51 +294,28 @@ Funciones para hacer descriptivos:
 
 ```{r}
 
-generate_indicators_summary <- function(data) {
-    # Verificar que las columnas necesarias están presentes
-    required_cols <- c("diferentes", "wrai")
-    if (!all(required_cols %in% colnames(data))) {
-        stop("Faltan una o más columnas necesarias en los datos.")
-    }
-    
-    # Convertir el data frame en data.table
-    data_dt <- as.data.table(data)
-    
-    # Calcular el resumen estadístico para todas las observaciones sin agrupar por sexo
-    stats_summary <- data.table(
-        Metric = c("diferentes", "wrai"),
-        Min = c(
-            round(min(data_dt$diferentes, na.rm = TRUE), 0),
-            paste0(round(min(data_dt$wrai, na.rm = TRUE) * 100, 2), "%")
-        ),
-        `1st_Qu.` = c(
-            round(quantile(data_dt$diferentes, 0.25, na.rm = TRUE), 0),
-            paste0(round(quantile(data_dt$wrai, 0.25, na.rm = TRUE) * 100, 2), "%")
-        ),
-        Median = c(
-            round(median(data_dt$diferentes, na.rm = TRUE), 0),
-            paste0(round(median(data_dt$wrai, na.rm = TRUE) * 100, 2), "%")
-        ),
-        Mean = c(
-            round(mean(data_dt$diferentes, na.rm = TRUE), 0),
-            paste0(round(mean(data_dt$wrai, na.rm = TRUE) * 100, 2), "%")
-        ),
-        `3rd_Qu.` = c(
-            round(quantile(data_dt$diferentes, 0.75, na.rm = TRUE), 0),
-            paste0(round(quantile(data_dt$wrai, 0.75, na.rm = TRUE) * 100, 2), "%")
-        ),
-        Max = c(
-            round(max(data_dt$diferentes, na.rm = TRUE), 0),
-            paste0(round(max(data_dt$wrai, na.rm = TRUE) * 100, 2), "%")
-        ),
-        SD = c(
-            round(sd(data_dt$diferentes, na.rm = TRUE), 2),
-            paste0(round(sd(data_dt$wrai, na.rm = TRUE) * 100, 2), "%")
-        )
-    )
-    
-    return(stats_summary)
+# Para generar matriz de confusión
+generate_cv_summary <- function(metrics_df) {
+  metrics_dt <- as.data.table(metrics_df)
+  
+  # Filtrar columnas numéricas
+  numeric_cols <- sapply(metrics_dt, is.numeric)
+  metrics_dt_numeric <- metrics_dt[, ..numeric_cols]
+  
+  stats_summary <- data.table(
+    Metric = colnames(metrics_dt_numeric),
+    Min = paste0(sapply(metrics_dt_numeric, function(x) round(min(x, na.rm = TRUE)*100, 2)), "%"),
+    `1st_Qu.` = paste0(sapply(metrics_dt_numeric, function(x) round(quantile(x, 0.25, na.rm = TRUE)*100, 2)), "%"),
+    Median = paste0(sapply(metrics_dt_numeric, function(x) round(median(x, na.rm = TRUE)*100, 2)), "%"),
+    Mean = paste0(sapply(metrics_dt_numeric, function(x) round(mean(x, na.rm = TRUE)*100, 2)), "%"),
+    `3rd_Qu.` = paste0(sapply(metrics_dt_numeric, function(x) round(quantile(x, 0.75, na.rm = TRUE)*100, 2)), "%"),
+    Max = paste0(sapply(metrics_dt_numeric, function(x) round(max(x, na.rm = TRUE)*100, 2)), "%"),
+    SD = paste0(sapply(metrics_dt_numeric, function(x) round(sd(x, na.rm = TRUE)*100, 2)), "%")
+  )
+  
+  return(stats_summary)
 }
+
 
 # Para generar data con wai y wrai
 comparison_data <- function(data) {
@@ -307,7 +333,6 @@ comparison_data <- function(data) {
         regresion = donor_col 
       )]
       
-      result[, wrai := round(diferentes / (iguales + diferentes), 4)]
       result[, categoria := categoria] 
       results_list[[paste0(categoria, "_", i)]] <- result
     }
@@ -321,7 +346,7 @@ comparison_data <- function(data) {
 # Para descriptivos de WAI y WRAI de los 5 folds y de cada clase
 generate_indicators_summary_by_class <- function(data) {
   # Verificar que las columnas necesarias están presentes
-  required_cols <- c("categoria", "diferentes", "wrai")
+  required_cols <- c("categoria", "wai", "wrai")
   if (!all(required_cols %in% colnames(data))) {
     stop("Faltan una o más columnas necesarias en los datos.")
   }
@@ -343,33 +368,33 @@ generate_indicators_summary_by_class <- function(data) {
     # Calcular el resumen estadístico para cada métrica dentro de esta sexo
     stats_summary <- data.table(
       sexo = sexo,
-      Metric = c("diferentes", "wrai"),
+      Metric = c("wai", "wrai"),
       Min = c(
-        round(min(sexo_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(min(sexo_data$wai, na.rm = TRUE) * 100, 2), "%"),
         paste0(round(min(sexo_data$wrai, na.rm = TRUE) * 100, 2), "%")
       ),
       `1st_Qu.` = c(
-        round(quantile(sexo_data$diferentes, 0.25, na.rm = TRUE), 0),
+        paste0(round(quantile(sexo_data$wai, 0.25, na.rm = TRUE) * 100, 2), "%"),
         paste0(round(quantile(sexo_data$wrai, 0.25, na.rm = TRUE) * 100, 2), "%")
       ),
       Median = c(
-        round(median(sexo_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(median(sexo_data$wai, na.rm = TRUE) * 100, 2), "%"),
         paste0(round(median(sexo_data$wrai, na.rm = TRUE) * 100, 2), "%")
       ),
       Mean = c(
-        round(mean(sexo_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(mean(sexo_data$wai, na.rm = TRUE) * 100, 2), "%"),
         paste0(round(mean(sexo_data$wrai, na.rm = TRUE) * 100, 2), "%")
       ),
       `3rd_Qu.` = c(
-        round(quantile(sexo_data$diferentes, 0.75, na.rm = TRUE), 0),
+        paste0(round(quantile(sexo_data$wai, 0.75, na.rm = TRUE) * 100, 2), "%"),
         paste0(round(quantile(sexo_data$wrai, 0.75, na.rm = TRUE) * 100, 2), "%")
       ),
       Max = c(
-        round(max(sexo_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(max(sexo_data$wai, na.rm = TRUE) * 100, 2), "%"),
         paste0(round(max(sexo_data$wrai, na.rm = TRUE) * 100, 2), "%")
       ),
       SD = c(
-        round(sd(sexo_data$diferentes, na.rm = TRUE), 2),
+        paste0(round(sd(sexo_data$wai, na.rm = TRUE) * 100, 2), "%"),
         paste0(round(sd(sexo_data$wrai, na.rm = TRUE) * 100, 2), "%")
       )
     )
@@ -464,8 +489,35 @@ metrics_cv_desap
 ```
 WAI y WRAI:
 ```{r}
+comparison_desap_stat1 <- comparison_data(comparacion_desap) %>%
+	filter(regresion == "sexo_regresion1") %>%
+	mutate(violencia = "desaparicion") %>%
+	left_join(conteos_sexo_ant1) 
 
-comparison_desap_stat <- comparison_data(comparacion_desap)
+comparison_desap_stat2 <- comparison_data(comparacion_desap) %>%
+	filter(regresion == "sexo_regresion2") %>%
+	mutate(violencia = "desaparicion") %>%
+	left_join(conteos_sexo_ant2) 
+
+comparison_desap_stat3 <- comparison_data(comparacion_desap) %>%
+	filter(regresion == "sexo_regresion3") %>%
+	mutate(violencia = "desaparicion") %>%
+	left_join(conteos_sexo_ant3) 
+
+comparison_desap_stat4 <- comparison_data(comparacion_desap) %>%
+	filter(regresion == "sexo_regresion4") %>%
+	mutate(violencia = "desaparicion") %>%
+	left_join(conteos_sexo_ant4) 
+
+comparison_desap_stat5 <- comparison_data(comparacion_desap) %>%
+	filter(regresion == "sexo_regresion5") %>%
+	mutate(violencia = "desaparicion") %>%
+	left_join(conteos_sexo_ant5) 
+
+comparison_desap_stat <- rbind(comparison_desap_stat1,comparison_desap_stat2,comparison_desap_stat3,
+															 comparison_desap_stat4,comparison_desap_stat4) %>%
+	mutate(wai = (diferentes/N),
+				 wrai = (diferentes/n_class))
 
 # Extraer estadísticos de los 5 folds
 stats_summary_desap <- generate_indicators_summary_by_class(comparison_desap_stat)
@@ -549,8 +601,35 @@ metrics_cv_homi
 ```
 WAI y WRAI:
 ```{r}
+comparison_homi_stat1 <- comparison_data(comparacion_homi) %>%
+	filter(regresion == "sexo_regresion1") %>%
+	mutate(violencia = "homicidio") %>%
+	left_join(conteos_sexo_ant1) 
 
-comparison_homi_stat <- comparison_data(comparacion_homi)
+comparison_homi_stat2 <- comparison_data(comparacion_homi) %>%
+	filter(regresion == "sexo_regresion2") %>%
+	mutate(violencia = "homicidio") %>%
+	left_join(conteos_sexo_ant2) 
+
+comparison_homi_stat3 <- comparison_data(comparacion_homi) %>%
+	filter(regresion == "sexo_regresion3") %>%
+	mutate(violencia = "homicidio") %>%
+	left_join(conteos_sexo_ant3) 
+
+comparison_homi_stat4 <- comparison_data(comparacion_homi) %>%
+	filter(regresion == "sexo_regresion4") %>%
+	mutate(violencia = "homicidio") %>%
+	left_join(conteos_sexo_ant4) 
+
+comparison_homi_stat5 <- comparison_data(comparacion_homi) %>%
+	filter(regresion == "sexo_regresion5") %>%
+	mutate(violencia = "homicidio") %>%
+	left_join(conteos_sexo_ant5) 
+
+comparison_homi_stat <- rbind(comparison_homi_stat1,comparison_homi_stat2,comparison_homi_stat3,
+															 comparison_homi_stat4,comparison_homi_stat4) %>%
+	mutate(wai = (diferentes/N),
+				 wrai = (diferentes/n_class))
 
 # Extraer estadísticos de los 5 folds
 stats_summary_homi <- generate_indicators_summary_by_class(comparison_homi_stat)
@@ -634,8 +713,35 @@ metrics_cv_reclu
 ```
 WAI y WRAI:
 ```{r}
+comparison_reclu_stat1 <- comparison_data(comparacion_reclu) %>%
+	filter(regresion == "sexo_regresion1") %>%
+	mutate(violencia = "reclutamiento") %>%
+	left_join(conteos_sexo_ant1) 
 
-comparison_reclu_stat <- comparison_data(comparacion_reclu)
+comparison_reclu_stat2 <- comparison_data(comparacion_reclu) %>%
+	filter(regresion == "sexo_regresion2") %>%
+	mutate(violencia = "reclutamiento") %>%
+	left_join(conteos_sexo_ant2) 
+
+comparison_reclu_stat3 <- comparison_data(comparacion_reclu) %>%
+	filter(regresion == "sexo_regresion3") %>%
+	mutate(violencia = "reclutamiento") %>%
+	left_join(conteos_sexo_ant3) 
+
+comparison_reclu_stat4 <- comparison_data(comparacion_reclu) %>%
+	filter(regresion == "sexo_regresion4") %>%
+	mutate(violencia = "reclutamiento") %>%
+	left_join(conteos_sexo_ant4) 
+
+comparison_reclu_stat5 <- comparison_data(comparacion_reclu) %>%
+	filter(regresion == "sexo_regresion5") %>%
+	mutate(violencia = "reclutamiento") %>%
+	left_join(conteos_sexo_ant5) 
+
+comparison_reclu_stat <- rbind(comparison_reclu_stat1,comparison_reclu_stat2,comparison_reclu_stat3,
+															 comparison_reclu_stat4,comparison_reclu_stat4) %>%
+	mutate(wai = (diferentes/N),
+				 wrai = (diferentes/n_class))
 
 # Extraer estadísticos de los 5 folds
 stats_summary_reclu <- generate_indicators_summary_by_class(comparison_reclu_stat)
@@ -719,8 +825,35 @@ metrics_cv_secue
 ```
 WAI y WRAI:
 ```{r}
+comparison_secue_stat1 <- comparison_data(comparacion_secue) %>%
+	filter(regresion == "sexo_regresion1") %>%
+	mutate(violencia = "secuestro") %>%
+	left_join(conteos_sexo_ant1) 
 
-comparison_secue_stat <- comparison_data(comparacion_secue)
+comparison_secue_stat2 <- comparison_data(comparacion_secue) %>%
+	filter(regresion == "sexo_regresion2") %>%
+	mutate(violencia = "secuestro") %>%
+	left_join(conteos_sexo_ant2) 
+
+comparison_secue_stat3 <- comparison_data(comparacion_secue) %>%
+	filter(regresion == "sexo_regresion3") %>%
+	mutate(violencia = "secuestro") %>%
+	left_join(conteos_sexo_ant3) 
+
+comparison_secue_stat4 <- comparison_data(comparacion_secue) %>%
+	filter(regresion == "sexo_regresion4") %>%
+	mutate(violencia = "secuestro") %>%
+	left_join(conteos_sexo_ant4) 
+
+comparison_secue_stat5 <- comparison_data(comparacion_secue) %>%
+	filter(regresion == "sexo_regresion5") %>%
+	mutate(violencia = "secuestro") %>%
+	left_join(conteos_sexo_ant5) 
+
+comparison_secue_stat <- rbind(comparison_secue_stat1,comparison_secue_stat2,comparison_secue_stat3,
+															 comparison_secue_stat4,comparison_secue_stat4) %>%
+	mutate(wai = (diferentes/N),
+				 wrai = (diferentes/n_class))
 
 # Extraer estadísticos de los 5 folds
 stats_summary_secue <- generate_indicators_summary_by_class(comparison_secue_stat)

@@ -61,7 +61,7 @@ table(complete_violencias_unidas_aux$violencia, complete_violencias_unidas_aux$g
 
 ```
 
-Genero valores NA's para un grupo de cada violencia y dejo los otros 4 grupos como parte del entrenamiento: 
+Genero valores NA's para un grupo de cada violencia y dejo los otros 4 grupos como parte del entrenamiento. Además hago algunos conteos de clase antes de la imputación para luego usarlos en el cálculo del WAI y WRAI: 
 
 ```{r}
 violencias_artificial_nas_1 <- complete_violencias_unidas_aux %>%
@@ -72,22 +72,71 @@ table(violencias_artificial_nas_1$violencia,
 			violencias_artificial_nas_1$grupo,
 			violencias_artificial_nas_1$p_str, useNA = "always")
 
+#conteos de clase antes de la imputación
+conteos_p_str_ant1 <- violencias_artificial_nas_1 %>%
+	mutate(categoria = p_str) %>%
+	group_by(categoria, violencia) %>%
+	summarise(n_class= n()) %>%
+	mutate(donante = "p_str_donante1") %>%
+	ungroup() %>%
+	group_by(violencia) %>%
+	mutate(N = sum(n_class))
 
 violencias_artificial_nas_2 <- complete_violencias_unidas_aux %>%
 	mutate(p_str = case_when(grupo == 2 ~ NA,
 													TRUE ~ p_str))
 
+#conteos de clase antes de la imputación
+conteos_p_str_ant2 <- violencias_artificial_nas_2 %>%
+	mutate(categoria = p_str) %>%
+	group_by(categoria, violencia) %>%
+	summarise(n_class= n()) %>%
+	mutate(donante = "p_str_donante2") %>%
+	ungroup() %>%
+	group_by(violencia) %>%
+	mutate(N = sum(n_class))
+
 violencias_artificial_nas_3 <- complete_violencias_unidas_aux %>%
 	mutate(p_str = case_when(grupo == 3 ~ NA,
 													TRUE ~ p_str))
+
+#conteos de clase antes de la imputación
+conteos_p_str_ant3 <- violencias_artificial_nas_3 %>%
+	mutate(categoria = p_str) %>%
+	group_by(categoria, violencia) %>%
+	summarise(n_class= n()) %>%
+	mutate(donante = "p_str_donante3") %>%
+	ungroup() %>%
+	group_by(violencia) %>%
+	mutate(N = sum(n_class))
 
 violencias_artificial_nas_4 <- complete_violencias_unidas_aux %>%
 	mutate(p_str = case_when(grupo == 4 ~ NA,
 													TRUE ~ p_str))
 
+#conteos de clase antes de la imputación
+conteos_p_str_ant4 <- violencias_artificial_nas_4 %>%
+	mutate(categoria = p_str) %>%
+	group_by(categoria, violencia) %>%
+	summarise(n_class= n()) %>%
+	mutate(donante = "p_str_donante4") %>%
+	ungroup() %>%
+	group_by(violencia) %>%
+	mutate(N = sum(n_class))
+
 violencias_artificial_nas_5 <- complete_violencias_unidas_aux %>%
 	mutate(p_str = case_when(grupo == 5 ~ NA,
 													TRUE ~ p_str))
+
+#conteos de clase antes de la imputación
+conteos_p_str_ant5 <- violencias_artificial_nas_5 %>%
+	mutate(categoria = p_str) %>%
+	group_by(categoria, violencia) %>%
+	summarise(n_class= n()) %>%
+	mutate(donante = "p_str_donante5") %>%
+	ungroup() %>%
+	group_by(violencia) %>%
+	mutate(N = sum(n_class))
 
 ```
 
@@ -276,7 +325,6 @@ comparison_data <- function(data) {
         donante = donor_col 
       )]
       
-      result[, wrai := round(diferentes / (iguales + diferentes), 4)]
       result[, categoria := categoria] 
       results_list[[paste0(categoria, "_", i)]] <- result
     }
@@ -287,10 +335,9 @@ comparison_data <- function(data) {
 }
 
 
-# Para descriptivos de WAI y WRAI de los 5 folds y de cada clase
 generate_indicators_summary_by_class <- function(data) {
   # Verificar que las columnas necesarias están presentes
-  required_cols <- c("categoria", "diferentes", "wrai")
+  required_cols <- c("categoria", "wai", "wrai")
   if (!all(required_cols %in% colnames(data))) {
     stop("Faltan una o más columnas necesarias en los datos.")
   }
@@ -312,33 +359,33 @@ generate_indicators_summary_by_class <- function(data) {
     # Calcular el resumen estadístico para cada métrica dentro de esta p_str
     stats_summary <- data.table(
       p_str = p_str,
-      Metric = c("diferentes", "wrai"),
+      Metric = c("wai", "wrai"),
       Min = c(
-        round(min(p_str_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(min(p_str_data$wai, na.rm = TRUE) * 100, 2), "%"),
         paste0(round(min(p_str_data$wrai, na.rm = TRUE) * 100, 2), "%")
       ),
       `1st_Qu.` = c(
-        round(quantile(p_str_data$diferentes, 0.25, na.rm = TRUE), 0),
+        paste0(round(quantile(p_str_data$wai, 0.25, na.rm = TRUE) * 100, 2), "%"),
         paste0(round(quantile(p_str_data$wrai, 0.25, na.rm = TRUE) * 100, 2), "%")
       ),
       Median = c(
-        round(median(p_str_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(median(p_str_data$wai, na.rm = TRUE) * 100, 2), "%"),
         paste0(round(median(p_str_data$wrai, na.rm = TRUE) * 100, 2), "%")
       ),
       Mean = c(
-        round(mean(p_str_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(mean(p_str_data$wai, na.rm = TRUE) * 100, 2), "%"),
         paste0(round(mean(p_str_data$wrai, na.rm = TRUE) * 100, 2), "%")
       ),
       `3rd_Qu.` = c(
-        round(quantile(p_str_data$diferentes, 0.75, na.rm = TRUE), 0),
+        paste0(round(quantile(p_str_data$wai, 0.75, na.rm = TRUE) * 100, 2), "%"),
         paste0(round(quantile(p_str_data$wrai, 0.75, na.rm = TRUE) * 100, 2), "%")
       ),
       Max = c(
-        round(max(p_str_data$diferentes, na.rm = TRUE), 0),
+        paste0(round(max(p_str_data$wai, na.rm = TRUE) * 100, 2), "%"),
         paste0(round(max(p_str_data$wrai, na.rm = TRUE) * 100, 2), "%")
       ),
       SD = c(
-        round(sd(p_str_data$diferentes, na.rm = TRUE), 2),
+        paste0(round(sd(p_str_data$wai, na.rm = TRUE) * 100, 2), "%"),
         paste0(round(sd(p_str_data$wrai, na.rm = TRUE) * 100, 2), "%")
       )
     )
@@ -352,7 +399,6 @@ generate_indicators_summary_by_class <- function(data) {
   
   return(final_summary)
 }
-
 ```
 
 
@@ -429,7 +475,35 @@ metrics_cv_desap
 ```
 WAI y WRAI:
 ```{r}
-comparison_desap_stat <- comparison_data(comparacion_desap)
+comparison_desap_stat1 <- comparison_data(comparacion_desap) %>%
+	filter(donante == "p_str_donante1") %>%
+	mutate(violencia = "desaparicion") %>%
+	left_join(conteos_p_str_ant1) 
+
+comparison_desap_stat2 <- comparison_data(comparacion_desap) %>%
+	filter(donante == "p_str_donante2") %>%
+	mutate(violencia = "desaparicion") %>%
+	left_join(conteos_p_str_ant2) 
+
+comparison_desap_stat3 <- comparison_data(comparacion_desap) %>%
+	filter(donante == "p_str_donante3") %>%
+	mutate(violencia = "desaparicion") %>%
+	left_join(conteos_p_str_ant3) 
+
+comparison_desap_stat4 <- comparison_data(comparacion_desap) %>%
+	filter(donante == "p_str_donante4") %>%
+	mutate(violencia = "desaparicion") %>%
+	left_join(conteos_p_str_ant4) 
+
+comparison_desap_stat5 <- comparison_data(comparacion_desap) %>%
+	filter(donante == "p_str_donante5") %>%
+	mutate(violencia = "desaparicion") %>%
+	left_join(conteos_p_str_ant5) 
+
+comparison_desap_stat <- rbind(comparison_desap_stat1,comparison_desap_stat2,comparison_desap_stat3,
+															 comparison_desap_stat4,comparison_desap_stat4) %>%
+	mutate(wai = (diferentes/N),
+				 wrai = (diferentes/n_class))
 
 # Extraer estadísticos de los 5 folds
 stats_summary_desap <- generate_indicators_summary_by_class(comparison_desap_stat)
@@ -440,8 +514,8 @@ stats_summary_desap
 # Homicidio:
 
 Se unen los datos reales a los datos imputados para cada uno de los grupos:
-```{r}
 
+```{r}
 artif_donante_p_str_homi1 <- (artif_donante_p_str_1[["homicidio_1998_2016"]])
 artif_donante_p_str_homi2 <- (artif_donante_p_str_2[["homicidio_1998_2016"]])
 artif_donante_p_str_homi3 <- (artif_donante_p_str_3[["homicidio_1998_2016"]])
@@ -463,7 +537,7 @@ comparacion_homi <- complete_violencias_unidas_aux %>%
 	merge(artif_donante_p_str_homi4, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
 	mutate(p_str_donante4 = as.factor(p_str_donante)) %>% select(-p_str_donante) %>%
 	merge(artif_donante_p_str_homi5, by = c("match_group_id", "muni_code_hecho", "yy_hecho")) %>%
-	mutate(p_str_donante5 = as.factor(p_str_donante)) %>% select(-p_str_donante)%>%
+	mutate(p_str_donante5 = as.factor(p_str_donante)) %>% select(-p_str_donante) %>%
 	as.data.table()
 
 ```
@@ -509,7 +583,35 @@ metrics_cv_homi
 ```
 WAI y WRAI:
 ```{r}
-comparison_homi_stat <- comparison_data(comparacion_homi)
+comparison_homi_stat1 <- comparison_data(comparacion_homi) %>%
+	filter(donante == "p_str_donante1") %>%
+	mutate(violencia = "homicidio") %>%
+	left_join(conteos_p_str_ant1) 
+
+comparison_homi_stat2 <- comparison_data(comparacion_homi) %>%
+	filter(donante == "p_str_donante2") %>%
+	mutate(violencia = "homicidio") %>%
+	left_join(conteos_p_str_ant2) 
+
+comparison_homi_stat3 <- comparison_data(comparacion_homi) %>%
+	filter(donante == "p_str_donante3") %>%
+	mutate(violencia = "homicidio") %>%
+	left_join(conteos_p_str_ant3) 
+
+comparison_homi_stat4 <- comparison_data(comparacion_homi) %>%
+	filter(donante == "p_str_donante4") %>%
+	mutate(violencia = "homicidio") %>%
+	left_join(conteos_p_str_ant4) 
+
+comparison_homi_stat5 <- comparison_data(comparacion_homi) %>%
+	filter(donante == "p_str_donante5") %>%
+	mutate(violencia = "homicidio") %>%
+	left_join(conteos_p_str_ant5) 
+
+comparison_homi_stat <- rbind(comparison_homi_stat1,comparison_homi_stat2,comparison_homi_stat3,
+															 comparison_homi_stat4,comparison_homi_stat4) %>%
+	mutate(wai = (diferentes/N),
+				 wrai = (diferentes/n_class))
 
 # Extraer estadísticos de los 5 folds
 stats_summary_homi <- generate_indicators_summary_by_class(comparison_homi_stat)
@@ -520,9 +622,8 @@ stats_summary_homi
 # Reclutamiento:
 
 Se unen los datos reales a los datos imputados para cada uno de los grupos:
-```{r}
-# Reclutamiento
 
+```{r}
 artif_donante_p_str_reclu1 <- (artif_donante_p_str_1[["reclutamiento_1998_2016"]])
 artif_donante_p_str_reclu2 <- (artif_donante_p_str_2[["reclutamiento_1998_2016"]])
 artif_donante_p_str_reclu3 <- (artif_donante_p_str_3[["reclutamiento_1998_2016"]])
@@ -590,7 +691,35 @@ metrics_cv_reclu
 ```
 WAI y WRAI:
 ```{r}
-comparison_reclu_stat <- comparison_data(comparacion_reclu)
+comparison_reclu_stat1 <- comparison_data(comparacion_reclu) %>%
+	filter(donante == "p_str_donante1") %>%
+	mutate(violencia = "reclutamiento") %>%
+	left_join(conteos_p_str_ant1) 
+
+comparison_reclu_stat2 <- comparison_data(comparacion_reclu) %>%
+	filter(donante == "p_str_donante2") %>%
+	mutate(violencia = "reclutamiento") %>%
+	left_join(conteos_p_str_ant2) 
+
+comparison_reclu_stat3 <- comparison_data(comparacion_reclu) %>%
+	filter(donante == "p_str_donante3") %>%
+	mutate(violencia = "reclutamiento") %>%
+	left_join(conteos_p_str_ant3) 
+
+comparison_reclu_stat4 <- comparison_data(comparacion_reclu) %>%
+	filter(donante == "p_str_donante4") %>%
+	mutate(violencia = "reclutamiento") %>%
+	left_join(conteos_p_str_ant4) 
+
+comparison_reclu_stat5 <- comparison_data(comparacion_reclu) %>%
+	filter(donante == "p_str_donante5") %>%
+	mutate(violencia = "reclutamiento") %>%
+	left_join(conteos_p_str_ant5) 
+
+comparison_reclu_stat <- rbind(comparison_reclu_stat1,comparison_reclu_stat2,comparison_reclu_stat3,
+															 comparison_reclu_stat4,comparison_reclu_stat4) %>%
+	mutate(wai = (diferentes/N),
+				 wrai = (diferentes/n_class))
 
 # Extraer estadísticos de los 5 folds
 stats_summary_reclu <- generate_indicators_summary_by_class(comparison_reclu_stat)
@@ -602,9 +731,8 @@ stats_summary_reclu
 # Secuestro:
 
 Se unen los datos reales a los datos imputados para cada uno de los grupos:
-```{r}
-# Secuestro
 
+```{r}
 artif_donante_p_str_secue1 <- (artif_donante_p_str_1[["secuestro_1998_2016"]])
 artif_donante_p_str_secue2 <- (artif_donante_p_str_2[["secuestro_1998_2016"]])
 artif_donante_p_str_secue3 <- (artif_donante_p_str_3[["secuestro_1998_2016"]])
@@ -670,15 +798,45 @@ metrics_cv_secue <- generate_cv_summary(metrics_df_secue)
 metrics_cv_secue
 
 ```
+
 WAI y WRAI:
 ```{r}
-comparison_secue_stat <- comparison_data(comparacion_secue)
+comparison_secue_stat1 <- comparison_data(comparacion_secue) %>%
+	filter(donante == "p_str_donante1") %>%
+	mutate(violencia = "secuestro") %>%
+	left_join(conteos_p_str_ant1) 
+
+comparison_secue_stat2 <- comparison_data(comparacion_secue) %>%
+	filter(donante == "p_str_donante2") %>%
+	mutate(violencia = "secuestro") %>%
+	left_join(conteos_p_str_ant2) 
+
+comparison_secue_stat3 <- comparison_data(comparacion_secue) %>%
+	filter(donante == "p_str_donante3") %>%
+	mutate(violencia = "secuestro") %>%
+	left_join(conteos_p_str_ant3) 
+
+comparison_secue_stat4 <- comparison_data(comparacion_secue) %>%
+	filter(donante == "p_str_donante4") %>%
+	mutate(violencia = "secuestro") %>%
+	left_join(conteos_p_str_ant4) 
+
+comparison_secue_stat5 <- comparison_data(comparacion_secue) %>%
+	filter(donante == "p_str_donante5") %>%
+	mutate(violencia = "secuestro") %>%
+	left_join(conteos_p_str_ant5) 
+
+comparison_secue_stat <- rbind(comparison_secue_stat1,comparison_secue_stat2,comparison_secue_stat3,
+															 comparison_secue_stat4,comparison_secue_stat4) %>%
+	mutate(wai = (diferentes/N),
+				 wrai = (diferentes/n_class))
 
 # Extraer estadísticos de los 5 folds
 stats_summary_secue <- generate_indicators_summary_by_class(comparison_secue_stat)
 stats_summary_secue
 
 ```
+
 
 
 
